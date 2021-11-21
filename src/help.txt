@@ -1,0 +1,17 @@
+A CLI for translating between bottom and human-readable text UwU
+
+USAGE:
+    bottom-zig [OPTIONS] <--bottomify|--regress> [text]...
+
+FLAGS:
+    -b, --bottomify    Translate text to bottom
+    -h, --help         Prints help information
+    -r, --regress      Translate bottom to human-readable text (futile)
+    -V, --version      Prints version information
+
+OPTIONS:
+    -i, --input <INPUT>      Input file [Default: stdin]
+    -o, --output <OUTPUT>    Output file [Default: stdout]
+
+ARGS:
+    <text>...
