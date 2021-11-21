@@ -23,7 +23,7 @@ pub const BottomDecoder = struct {
     }
     pub fn decodeByte(byte: []const u8) !u8 {
         var b: u8 = 0;
-        var index: u64 = 0;
+        var index: usize = 0;
         while (index < byte.len) {
             if (index + 4 < byte.len + 1) {
                 if (std.mem.eql(u8, bottom.chars[0..4], byte[index .. index + 4])) {
