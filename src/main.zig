@@ -3,7 +3,7 @@ const bottom = @import("bottom");
 const args = @import("args");
 const build_options = @import("build_options");
 const help_text = @embedFile("help.txt");
-const bufferSize = 128 *1024; 
+const bufferSize = 128 * 1024;
 
 /// We create options similar to bottom RS
 const Options = struct {
@@ -79,37 +79,39 @@ pub fn main() anyerror!void {
         outputFile = std.fs.createFileAbsolute(absolutePath, std.fs.File.CreateFlags{}) catch std.os.exit(2);
     }
     if (bottomiffy_option) {
-        try bottomiffy(inputFile, outputFile, allocator);
+        try bottomiffy(inputFile, outputFile);
     }
     if (regress_option) {
-        try regress(inputFile, outputFile, allocator);
+        try regress(inputFile, outputFile);
     }
 }
-pub fn bottomiffy(fileInput: std.fs.File, fileOutput: std.fs.File, allocator: *std.mem.Allocator) !void {
+pub fn bottomiffy(fileInput: std.fs.File, fileOutput: std.fs.File) !void {
     var buffer: [bufferSize]u8 = undefined; // We use 16Kb =)
+    var bufferBottom: [bufferSize * bottom.encoder.max_expansion_per_byte]u8 = undefined; // We use a buffer to accelerate this =)
 
     var size: usize = 1;
     while (size != 0) {
         size = try fileInput.reader().read(&buffer);
         if (size > 0) {
-            var outbuffer: []u8 = try bottom.encoder.encode(buffer[0 .. size - 1], allocator);
-            defer allocator.free(outbuffer);
+            var outbuffer: []u8 = try bottom.encoder.encode(buffer[0 .. size - 1], &bufferBottom);
             _ = try fileOutput.writer().write(outbuffer);
             buffer = undefined;
+            bufferBottom = undefined;
         }
     }
 }
-pub fn regress(fileInput: std.fs.File, fileOutput: std.fs.File, allocator: *std.mem.Allocator) !void {
-    var buffer: [bufferSize ]u8 = undefined; // We use 16Kb =)
-    
+pub fn regress(fileInput: std.fs.File, fileOutput: std.fs.File) !void {
+    var buffer: [bufferSize]u8 = undefined; // We use 16Kb =)
+    var bufferRegress: [bufferSize * bottom.encoder.max_expansion_per_byte]u8 = undefined; // We use a buffer to accelerate this =)
+
     var size: usize = 1;
     while (size != 0) {
         size = try fileInput.reader().read(&buffer);
         if (size > 0) {
-            var outbuffer: []u8 = try bottom.decoder.decode(buffer[0 .. size - 1], allocator);
-            defer allocator.free(outbuffer);
-           _ =  try fileOutput.writer().write(outbuffer);
+            var outbuffer: []u8 = try bottom.decoder.decode(buffer[0 .. size - 1], &bufferRegress);
+            _ = try fileOutput.writer().write(outbuffer);
             buffer = undefined;
+            bufferRegress = undefined;
         }
     }
 }

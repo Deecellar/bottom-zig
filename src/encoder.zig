@@ -3,57 +3,64 @@ const options = @import("build_options").c_use;
 /// This is just a namespace for the bottom encoder
 pub const BottomEncoder = struct {
     pub const chars: []const u8 = "🫂💖✨🥺❤👉👈";
+    pub const max_expansion_per_byte = 40;
+    pub fn encodeAlloc(str: []const u8, allocator : *std.mem.Allocator) ![]u8 {
+        const mem = try allocator.alloc(u8,str.len * max_expansion_per_byte);
+        return try encode(str,mem);
+    }
+    
 
     /// Encode a stream of bytes to a bottomified version, the caller owns memory
-    pub fn encode(str: []u8, allocator: *std.mem.Allocator) ![]u8 {
-        var bottomStreamBuffer = try std.ArrayList(u8).initCapacity(allocator,str.len * 5);
+    pub fn encode(str: []const u8, mem: []u8) ![]u8 {
+        var index : usize = 0;
         for (str) |v| {
-            var byte = try encodeByte(v,allocator);
-            defer allocator.free(byte);
-            try bottomStreamBuffer.appendSlice(byte);
+            var byte = try encodeByte(v);
+            std.mem.copy(u8, mem[index..index+byte.len], byte[0..byte.len ]); 
+            index += byte.len;
         }
-        return bottomStreamBuffer.toOwnedSlice();
+        return mem[0..index];
     }
     /// Encode one byte to bottom, the caller owns memory
-    pub fn encodeByte(byte: u8,allocator : *std.mem.Allocator) ![]u8 {
-        var bottomBuffer: std.ArrayList(u8) = try std.ArrayList(u8).initCapacity(allocator,35);
+    pub fn encodeByte(byte: u8) ![]u8 {
+        var buffer: [max_expansion_per_byte]u8 = undefined; // The maximum ammount of bytes per byte is 40
         var b: u8 = byte;
-        if (b == 0) try bottomBuffer.appendSlice(chars[15..18]);
+        var index: u6 = 0;
+        if (b == 0) {
+            std.mem.copy(u8, buffer[0..3], chars[15..18]);
+            index += 3;
+        }
         while (b != 0) {
             if (b >= 200) {
                 b -= 200;
-                try bottomBuffer.appendSlice(chars[0..4]);
+                std.mem.copy(u8, buffer[index .. index + 4], chars[0..4]);
+                index += 4;
             } else if (b >= 50) {
                 b -= 50;
-                try bottomBuffer.appendSlice(chars[4..8]);
+                std.mem.copy(u8, buffer[index .. index + 4], chars[4..8]);
+                index += 4;
             } else if (b >= 10) {
                 b -= 10;
-                try bottomBuffer.appendSlice(chars[8..11]);
+                std.mem.copy(u8, buffer[index .. index + 3], chars[8..11]);
+                index += 3;
             } else if (b >= 5) {
                 b -= 5;
-                try bottomBuffer.appendSlice(chars[11..15]);
+                std.mem.copy(u8, buffer[index .. index + 4], chars[11..15]);
+                index += 4;
             } else if (b >= 1) {
                 b -= 1;
-                try bottomBuffer.append(',');
+                buffer[index] = ',';
+                index += 1;
             }
         }
-        
-        try bottomBuffer.appendSlice(chars[18..]);
-        
-        return bottomBuffer.toOwnedSlice();
+        std.mem.copy(u8, buffer[index..], chars[18..]);
+        index += 8;
+        return buffer[0..index];
     }
 };
 
 test "encode works" {
-    var arr =  std.ArrayList(u8).init(std.testing.allocator);
-    try arr.appendSlice("hello world!");
-    defer arr.deinit();
     const a = "💖💖,,,,👉👈💖💖,👉👈💖💖🥺,,,👉👈💖💖🥺,,,👉👈💖💖✨,👉👈✨✨✨,,👉👈💖💖✨🥺,,,,👉👈💖💖✨,👉👈💖💖✨,,,,👉👈💖💖🥺,,,👉👈💖💖👉👈✨✨✨,,,👉👈";
-    var arr2 =  std.ArrayList(u8).init(std.testing.allocator);
-    try arr2.appendSlice(a);
-    defer arr2.deinit();
-    const res = try BottomEncoder.encode(arr.items, std.testing.allocator);
+    const res = try BottomEncoder.encodeAlloc("hello world!", std.testing.allocator);
     defer std.testing.allocator.free(res);
-    try std.testing.expectEqualStrings(arr2.items,res) ;
-
+    try std.testing.expectEqualStrings(a, res);
 }

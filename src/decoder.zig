@@ -3,24 +3,29 @@ const bottom = @import("encoder.zig").BottomEncoder;
 
 /// This struct is just a namespace for the decoder
 pub const BottomDecoder = struct {
-    pub fn decode(str: []u8, allocator: *std.mem.Allocator) ![]u8 {
-        var normalStreamBuffer = std.ArrayList(u8).init(allocator);
+    pub fn decodeAlloc(str: [] const u8, allocator : *std.mem.Allocator) ![]u8 {
+        var len = try std.math.divCeil(usize, str.len, bottom.max_expansion_per_byte);
+        var mem = try allocator.alloc(u8, len * 2);
+        return try decode(str,mem);
+    }
+    pub fn decode(str: [] const u8, buffer: [] u8) ![]u8 {
         var iter = std.mem.split(u8, str, "👉👈");
+        var index : usize = 0;
         while (true) {
             if (iter.next()) |owo| {
-                try normalStreamBuffer.append(try decodeByte(owo));
+                buffer[index] = (try decodeByte(owo));
+                index += 1;
             } else {
                 break;
             }
         }
-        _ =  normalStreamBuffer.pop();
-        return normalStreamBuffer.toOwnedSlice();
+        return buffer[0..index - 1];
     }
     pub fn decodeByte(byte: []const u8) !u8 {
         var b: u8 = 0;
         var index: u64 = 0;
         while (index < byte.len) {
-            if (index+4 < byte.len +1) {
+            if (index + 4 < byte.len + 1) {
                 if (std.mem.eql(u8, bottom.chars[0..4], byte[index .. index + 4])) {
                     b += 200;
                     index += 4;
@@ -55,14 +60,8 @@ pub const BottomDecoder = struct {
     }
 };
 test "encode works" {
-    var arr = std.ArrayList(u8).init(std.testing.allocator);
-    try arr.appendSlice("hello world!");
-    defer arr.deinit();
     const a = "💖💖,,,,👉👈💖💖,👉👈💖💖🥺,,,👉👈💖💖🥺,,,👉👈💖💖✨,👉👈✨✨✨,,👉👈💖💖✨🥺,,,,👉👈💖💖✨,👉👈💖💖✨,,,,👉👈💖💖🥺,,,👉👈💖💖👉👈✨✨✨,,,👉👈";
-    var arr2 = std.ArrayList(u8).init(std.testing.allocator);
-    try arr2.appendSlice(a);
-    defer arr2.deinit();
-    const res = try BottomDecoder.decode(arr2.items, std.testing.allocator);
+    const res = try BottomDecoder.decodeAlloc(a, std.testing.allocator);
     defer std.testing.allocator.free(res);
-    try std.testing.expectEqualStrings(arr.items, res);
+    try std.testing.expectEqualStrings("hello world!", res);
 }
