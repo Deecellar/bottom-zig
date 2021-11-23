@@ -18,6 +18,7 @@ pub const BottomDecoder = struct {
             } else {
                 break;
             }
+            
         }
         return buffer[0..index - 1];
     }

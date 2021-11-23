@@ -69,14 +69,10 @@ pub fn main() anyerror!void {
     errdefer outputFile.close();
     defer outputFile.close();
     if (options.options.input) |path| {
-        var absolutePath = std.fs.realpathAlloc(allocator, path) catch std.os.exit(1);
-        defer allocator.free(absolutePath);
-        inputFile = std.fs.openFileAbsolute(path, std.fs.File.OpenFlags{}) catch std.os.exit(2);
+        inputFile = std.fs.cwd().openFile(path, std.fs.File.OpenFlags{}) catch std.os.exit(2);
     }
     if (options.options.output) |path| {
-        var absolutePath = std.fs.realpathAlloc(allocator, path) catch std.os.exit(1);
-        defer allocator.free(absolutePath);
-        outputFile = std.fs.createFileAbsolute(absolutePath, std.fs.File.CreateFlags{}) catch std.os.exit(2);
+        outputFile = std.fs.cwd().createFile(path, std.fs.File.CreateFlags{}) catch std.os.exit(2);
     }
     if (bottomiffy_option) {
         try bottomiffy(inputFile, outputFile);
