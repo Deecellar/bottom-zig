@@ -24,16 +24,16 @@ const Options = struct {
 };
 
 pub fn main() anyerror!void {
-    var allocator: *std.mem.Allocator = undefined;
+    var allocator: std.mem.Allocator = undefined;
     var arena: std.heap.ArenaAllocator = undefined;
     defer arena.deinit();
     if (build_options.use_c) {
         arena = std.heap.ArenaAllocator.init(std.heap.c_allocator);
     } else {
         var generalPurpose = std.heap.GeneralPurposeAllocator(.{}){};
-        arena = std.heap.ArenaAllocator.init(&generalPurpose.allocator);
+        arena = std.heap.ArenaAllocator.init(generalPurpose.allocator());
     }
-    allocator = &arena.allocator;
+    allocator = arena.allocator();
     errdefer arena.deinit();
     const options = args.parseForCurrentProcess(Options, allocator, .print) catch return std.os.exit(1);
     defer options.deinit();

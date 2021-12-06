@@ -3,7 +3,7 @@ const bottom = @import("encoder.zig").BottomEncoder;
 
 /// This struct is just a namespace for the decoder
 pub const BottomDecoder = struct {
-    pub fn decodeAlloc(str: [] const u8, allocator : *std.mem.Allocator) ![]u8 {
+    pub fn decodeAlloc(str: [] const u8, allocator : std.mem.Allocator) ![]u8 {
         var len = try std.math.divCeil(usize, str.len, bottom.max_expansion_per_byte);
         var mem = try allocator.alloc(u8, len * 2);
         return try decode(str,mem);
