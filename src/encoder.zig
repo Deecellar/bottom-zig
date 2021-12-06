@@ -4,7 +4,7 @@ const options = @import("build_options").c_use;
 pub const BottomEncoder = struct {
     pub const chars: []const u8 = "🫂💖✨🥺❤👉👈";
     pub const max_expansion_per_byte = 40;
-    pub fn encodeAlloc(str: []const u8, allocator : *std.mem.Allocator) ![]u8 {
+    pub fn encodeAlloc(str: []const u8, allocator : std.mem.Allocator) ![]u8 {
         const mem = try allocator.alloc(u8,str.len * max_expansion_per_byte);
         return try encode(str,mem);
     }
