@@ -13,8 +13,6 @@ Why I am publishing something incomplete, since I don't care =3
 
 # Things that does not work
 
-- relative paths as an input
-- Outputing to a file that is not stdout...
 - My doc comments and comments
 
 # Will I continue
