@@ -1,6 +1,6 @@
 const std = @import("std");
 const bottom = @import("bottom");
-const args = @import("args");
+const args = @import("zig-args");
 const build_options = @import("build_options");
 const help_text = @embedFile("help.txt");
 const bufferSize = 128 * 1024;
