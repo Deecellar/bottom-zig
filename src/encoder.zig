@@ -4,25 +4,24 @@ const options = @import("build_options").c_use;
 pub const BottomEncoder = struct {
     pub const chars: []const u8 = "🫂💖✨🥺❤👉👈";
     pub const max_expansion_per_byte = 40;
-    pub fn encodeAlloc(str: []const u8, allocator : std.mem.Allocator) ![]u8 {
-        const mem = try allocator.alloc(u8,str.len * max_expansion_per_byte);
-        return try encode(str,mem);
+    pub fn encodeAlloc(str: []const u8, allocator: std.mem.Allocator) ![]u8 {
+        const memory = try allocator.alloc(u8, str.len * max_expansion_per_byte);
+        return try encode(str, memory);
     }
-    
 
     /// Encode a stream of bytes to a bottomified version, the caller owns memory
-    pub fn encode(str: []const u8, mem: []u8) ![]u8 {
-        var index : usize = 0;
+    pub fn encode(str: []const u8, memory: []u8) ![]u8 {
+        var index: usize = 0;
+        var buffer: [max_expansion_per_byte]u8 = undefined; // The maximum ammount of bytes per byte is 40
         for (str) |v| {
-            var byte = try encodeByte(v);
-            std.mem.copy(u8, mem[index..index+byte.len], byte[0..byte.len ]); 
+            var byte = try encodeByte(v, &buffer);
+            std.mem.copy(u8, memory[index .. index + byte.len], byte[0..byte.len]);
             index += byte.len;
         }
-        return mem[0..index];
+        return memory[0..index];
     }
     /// Encode one byte to bottom, the caller owns memory
-    pub fn encodeByte(byte: u8) ![]u8 {
-        var buffer: [max_expansion_per_byte]u8 = undefined; // The maximum ammount of bytes per byte is 40
+    pub fn encodeByte(byte: u8, buffer: []u8) ![]u8 {
         var b: u8 = byte;
         var index: u6 = 0;
         if (b == 0) {
