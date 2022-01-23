@@ -1,0 +1,6 @@
+[submodule "vendors/zig-native-vector"]
+	path = vendors/zig-native-vector
+	url = https://github.com/rilden/zig-native-vector
+[submodule "vendors/zig-args"]
+	path = vendors/zig-args
+	url = https://github.com/MasterQ32/zig-args
