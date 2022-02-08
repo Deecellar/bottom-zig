@@ -1,6 +1,6 @@
 # Bottom-Zig
 
-This in an implementaion of the Bottom Spec in Zig, now, this really a bad implementation, it decodes and encodes fine enough, but it ignores any non-encoded character when decoding
+This in an implementaion of the Bottom Spec in Zig, now, this really a bad implementation, it decodes and encodes fine enough, decodes fine enough, but decoding is slow as fuck just because I did not wanna use a hashmap =)
 on the other hand, I did not use much of error control nor fine user interface, this will crash on you and it will be the same as it would've succeded
 Why I am publishing something incomplete, since I don't care =3
 
