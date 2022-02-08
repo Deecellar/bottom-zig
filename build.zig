@@ -5,7 +5,7 @@ pub fn getAllPkg(comptime T: type) CalculatePkg(T) {
     var pkgs: CalculatePkg(T) = undefined;
     var index: usize = 0;
     inline for (declarations) |d| {
-        if (d.data == .Var) {
+        if (@TypeOf(@field(T, d.name)) == std.build.Pkg) {
             pkgs[index] = @field(T, d.name);
             index += 1;
         }
@@ -17,7 +17,7 @@ fn CalculatePkg(comptime T: type) type {
     const declarations: []const std.builtin.TypeInfo.Declaration = info.Struct.decls;
     var count: usize = 0;
     for (declarations) |d| {
-        if (d.data == .Var) {
+        if (@TypeOf(@field(T, d.name)) == std.build.Pkg) {
             count += 1;
         }
     }
@@ -93,6 +93,25 @@ pub fn build(b: *std.build.Builder) void {
         lib.linkLibC();
     }
     lib.install();
+
+    const exe2 = b.addExecutable("benchmark", "src/benchmark.zig");
+    exe2.addPackage(pkgs.bottom);
+    exe2.addPackage(pkgs.vector);
+    exe2.setTarget(target);
+    exe2.setBuildMode(.ReleaseFast);
+    exe2.install();
+
+    const benchmark_step = b.step("benchmark", "Run benchmarks");
+    benchmark_step.dependOn(&exe2.step);
+
+    const run_cmd2 = exe2.run();
+    run_cmd2.step.dependOn(b.getInstallStep());
+    if (b.args) |args| {
+        run_cmd2.addArgs(args);
+    }
+
+    const run_step2 = b.step("run-benchmark", "Run the Bottom Encoder/Decoder benchmark");
+    run_step2.dependOn(&run_cmd2.step);
 
     const test_lib = b.addTest("bottom.zig");
     test_lib.setBuildMode(mode);
