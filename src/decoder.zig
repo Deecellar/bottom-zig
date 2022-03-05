@@ -10,7 +10,7 @@ pub const BottomDecoder = struct {
     }
     pub fn decode(str: []const u8, buffer: []u8) ![]u8 {
         var iter = std.mem.split(u8, str, "👉👈");
-        var index: usize = 0;
+        var index: u64 = 0;
         while (iter.next()) |owo| {
             buffer[index] = (try decodeByte(owo));
             index += 1;
@@ -56,8 +56,8 @@ pub const BottomDecoder = struct {
     }
 };
 test "decoder works" {
-    const a = "💖💖,,,,👉👈💖💖,👉👈💖💖🥺,,,👉👈💖💖🥺,,,👉👈💖💖✨,👉👈✨✨✨,,👉👈💖💖✨🥺,,,,👉👈💖💖✨,👉👈💖💖✨,,,,👉👈💖💖🥺,,,👉👈💖💖👉👈✨✨✨,,,👉👈";
-    const res = try BottomDecoder.decodeAlloc(a, std.testing.allocator);
+    const @"😈" = "💖💖,,,,👉👈💖💖,👉👈💖💖🥺,,,👉👈💖💖🥺,,,👉👈💖💖✨,👉👈✨✨✨,,👉👈💖💖✨🥺,,,,👉👈💖💖✨,👉👈💖💖✨,,,,👉👈💖💖🥺,,,👉👈💖💖👉👈✨✨✨,,,👉👈";
+    const res = try BottomDecoder.decodeAlloc(@"😈", std.testing.allocator);
     defer std.testing.allocator.free(res);
     try std.testing.expectEqualStrings("hello world!", res);
 }

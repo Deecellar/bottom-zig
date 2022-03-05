@@ -22,8 +22,14 @@ const Options = struct {
         .o = "output",
     };
 };
-
-pub fn main() anyerror!void {
+pub fn main() void {
+    consoleApp() catch |err| {
+        switch (err) {
+            
+        }
+    };
+}
+pub fn consoleApp() !noreturn {
     var allocator: std.mem.Allocator = undefined;
     var arena: std.heap.ArenaAllocator = undefined;
     defer arena.deinit();
@@ -80,6 +86,7 @@ pub fn main() anyerror!void {
     if (regress_option) {
         try regress(inputFile, outputFile);
     }
+    std.os.exit(0);
 }
 pub fn bottomiffy(fileInput: std.fs.File, fileOutput: std.fs.File) !void {
     var buffer: [bufferSize]u8 = undefined; // We use 16Kb =)
