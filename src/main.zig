@@ -23,13 +23,14 @@ const Options = struct {
     };
 };
 pub fn main() void {
-    consoleApp() catch |err| {
-        switch (err) {
-            
+    if (@import("builtin").os.tag == .windows) {
+        if (std.os.windows.kernel32.SetConsoleOutputCP(65001) == 0) {
+            std.os.exit(5);
         }
-    };
+    }
+    consoleApp() catch {};
 }
-pub fn consoleApp() !noreturn {
+pub fn consoleApp() !void {
     var allocator: std.mem.Allocator = undefined;
     var arena: std.heap.ArenaAllocator = undefined;
     defer arena.deinit();
@@ -89,34 +90,40 @@ pub fn consoleApp() !noreturn {
     std.os.exit(0);
 }
 pub fn bottomiffy(fileInput: std.fs.File, fileOutput: std.fs.File) !void {
-    var buffer: [bufferSize]u8 = undefined; // We use 16Kb =)
-    var bufferBottom: [bufferSize * bottom.encoder.max_expansion_per_byte]u8 = undefined; // We use a buffer to accelerate this =)
+    var bufferInput: std.io.BufferedReader(bufferSize, std.fs.File.Reader) = .{ .unbuffered_reader = fileInput.reader() };
+    var bufferOut: std.io.BufferedWriter(bufferSize * bottom.encoder.max_expansion_per_byte, std.fs.File.Writer) = .{ .unbuffered_writer = fileOutput.writer() };
+    var bufferBottom: [bufferSize * bottom.encoder.max_expansion_per_byte]u8 = undefined;
+    var buffer: [bufferSize]u8 = undefined;
 
     var size: usize = 1;
     while (size != 0) {
-        size = try fileInput.reader().read(&buffer);
+        size = try bufferInput.read(&buffer);
         if (size > 0) {
-            var outbuffer: []u8 = try bottom.encoder.encode(buffer[0 .. size - 1], &bufferBottom);
-            _ = try fileOutput.writer().write(outbuffer);
+            var outbuffer: []u8 =  bottom.encoder.encode(buffer[0 .. size - 1], &bufferBottom);
+            _ = try bufferOut.write(outbuffer);
             buffer = undefined;
             bufferBottom = undefined;
         }
     }
+    try bufferOut.flush();
 }
 pub fn regress(fileInput: std.fs.File, fileOutput: std.fs.File) !void {
-    var buffer: [bufferSize]u8 = undefined; // We use 16Kb =)
-    var bufferRegress: [bufferSize * bottom.encoder.max_expansion_per_byte]u8 = undefined; // We use a buffer to accelerate this =)
+    var bufferInput: std.io.BufferedReader(bufferSize, std.fs.File.Reader) = .{ .unbuffered_reader = fileInput.reader() };
+    var bufferOut: std.io.BufferedWriter(bufferSize * bottom.encoder.max_expansion_per_byte, std.fs.File.Writer) = .{ .unbuffered_writer = fileOutput.writer() };
+    var bufferRegress: [bufferSize * bottom.encoder.max_expansion_per_byte]u8 = undefined;
+    var buffer: [bufferSize]u8 = undefined;
 
     var size: usize = 1;
     while (size != 0) {
-        size = try fileInput.reader().read(&buffer);
+        size = try bufferInput.read(&buffer);
         if (size > 0) {
-            var outbuffer: []u8 = try bottom.decoder.decode(buffer[0 .. size - 1], &bufferRegress);
-            _ = try fileOutput.writer().write(outbuffer);
+            var outbuffer: []u8 = bottom.decoder.decode(buffer[0 .. size - 1], &bufferRegress);
+            _ = try bufferOut.write(outbuffer);
             buffer = undefined;
             bufferRegress = undefined;
         }
     }
+    try bufferOut.flush();
 }
 pub fn help() !void {
     try std.io.getStdOut().writer().writeAll(help_text);

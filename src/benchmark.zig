@@ -12,11 +12,11 @@ pub fn main() !void {
     rand.fill(string);
     var accum: u64 = 0;
     tiem = try std.time.Timer.start();
-    buffer = encode.BottomEncoder.encode(string, buffer) catch unreachable;
+    buffer = encode.BottomEncoder.encode(string, buffer);
     accum = tiem.lap();
     try std.io.getStdOut().writer().print("speed {d}\n", .{accum});
     tiem = try std.time.Timer.start();
-    string2 = decode.BottomDecoder.decode(buffer, string2) catch unreachable;
+    string2 = decode.BottomDecoder.decode(buffer, string2) ;
     accum = tiem.lap();
     try std.io.getStdOut().writer().print("speed {d}\n", .{accum});
     tiem.reset();
