@@ -35,7 +35,11 @@ pub const BottomEncoder = struct {
         var b: u8 = byte;
         var index: usize = 0;
         var passed: bool = false;
-
+        if (byte == 0) {
+            var text = "❤";
+            std.mem.copy(u8, buffer[index..], text);
+            index += text.len;
+        }
         while (b != 0) {
             passed = false;
             inline for (std.meta.fields(ByteEnum)) |f| {
