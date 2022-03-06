@@ -30,10 +30,6 @@ pub fn build(b: *std.build.Builder) void {
             .path = .{ .path = "bottom.zig" },
             .dependencies = &.{vector},
         };
-        const vector = std.build.Pkg{
-            .name = "zig-native-vector",
-            .path = .{ .path = "vendors/zig-native-vector/src/algorithms.zig" },
-        };
 
         const args = std.build.Pkg{
             .name = "zig-args",
