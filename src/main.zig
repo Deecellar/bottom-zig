@@ -99,7 +99,7 @@ pub fn bottomiffy(fileInput: std.fs.File, fileOutput: std.fs.File) !void {
     while (size != 0) {
         size = try bufferInput.read(&buffer);
         if (size > 0) {
-            var outbuffer: []u8 =  bottom.encoder.encode(buffer[0 .. size - 1], &bufferBottom);
+            var outbuffer: []u8 = bottom.encoder.encode(buffer[0 .. size - 1], &bufferBottom);
             _ = try bufferOut.write(outbuffer);
             buffer = undefined;
             bufferBottom = undefined;
@@ -112,13 +112,12 @@ pub fn regress(fileInput: std.fs.File, fileOutput: std.fs.File) !void {
     var bufferOut: std.io.BufferedWriter(bufferSize * bottom.encoder.max_expansion_per_byte, std.fs.File.Writer) = .{ .unbuffered_writer = fileOutput.writer() };
     var bufferRegress: [bufferSize * bottom.encoder.max_expansion_per_byte]u8 = undefined;
     var buffer: [bufferSize]u8 = undefined;
-
-    var size: usize = 1;
-    while (size != 0) {
-        size = try bufferInput.read(&buffer);
-        if (size > 0) {
-            var outbuffer: []u8 = bottom.decoder.decode(buffer[0 .. size - 1], &bufferRegress);
-            _ = try bufferOut.write(outbuffer);
+    var temp: []u8 = &@as([1]u8, undefined);
+    while (temp.len != 0) {
+        temp = (try bufferInput.reader().readUntilDelimiterOrEof(&buffer, "👈"[3])) orelse &@as([0]u8, undefined);
+        if (temp.len > 0) {
+            var outbuffer: u8 = bottom.decoder.decodeByte(temp[0 .. temp.len - 7]);
+            _ = try bufferOut.writer().writeByte(outbuffer);
             buffer = undefined;
             bufferRegress = undefined;
         }

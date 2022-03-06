@@ -13,7 +13,7 @@ pub const ByteEnum = enum(u8) {
 
 /// This is just a namespace for the bottom encoder
 pub const BottomEncoder = struct {
-    pub const max_expansion_per_byte = 80;
+    pub const max_expansion_per_byte = 40;
     pub fn encodeAlloc(str: []const u8, allocator: std.mem.Allocator) ![]u8 {
         const memory = try allocator.alloc(u8, str.len * max_expansion_per_byte);
         return encode(str, memory);
@@ -36,24 +36,21 @@ pub const BottomEncoder = struct {
         var index: usize = 0;
         var passed: bool = false;
 
-        while (true) {
+        while (b != 0) {
             passed = false;
             inline for (std.meta.fields(ByteEnum)) |f| {
-                if (b >= f.value and !passed) {
+                if (b >= f.value and !passed and b != 0) {
                     b -= f.value;
                     std.mem.copy(u8, buffer[index .. index + f.name.len], f.name);
                     index += f.name.len;
                     passed = true;
-                    if (b == 0) {
-                        var text = "👉👈";
-                        std.mem.copy(u8, buffer[index..], text);
-                        index += text.len;
-                        return buffer[0..index];
-                    }
                 }
             }
         }
-        unreachable;
+        var text = "👉👈";
+        std.mem.copy(u8, buffer[index..], text);
+        index += text.len;
+        return buffer[0..index];
     }
 };
 
