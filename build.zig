@@ -28,7 +28,6 @@ pub fn build(b: *std.build.Builder) void {
         const bottom = std.build.Pkg{
             .name = "bottom",
             .path = .{ .path = "bottom.zig" },
-            .dependencies = &.{vector},
         };
 
         const args = std.build.Pkg{
@@ -82,7 +81,6 @@ pub fn build(b: *std.build.Builder) void {
 
     const lib = b.addStaticLibrary("bottom-zig", "bottom.zig");
     lib.setTarget(target);
-    lib.addPackage(pkgs.vector);
     lib.setBuildMode(mode);
     lib.addOptions("build_options", options);
     if (use_c) {
@@ -92,7 +90,6 @@ pub fn build(b: *std.build.Builder) void {
 
     const exe2 = b.addExecutable("benchmark", "src/benchmark.zig");
     exe2.addPackage(pkgs.bottom);
-    exe2.addPackage(pkgs.vector);
     exe2.setTarget(target);
     exe2.setBuildMode(.ReleaseFast);
     exe2.install();
@@ -111,7 +108,6 @@ pub fn build(b: *std.build.Builder) void {
 
     const test_lib = b.addTest("bottom.zig");
     test_lib.setBuildMode(mode);
-    test_lib.addPackage(pkgs.vector);
 
     const test_lib_step = b.step("test-lib", "Run unit tests for the Library");
     test_lib_step.dependOn(&test_lib.step);
