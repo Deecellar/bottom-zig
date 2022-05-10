@@ -25,6 +25,7 @@ const Options = struct {
 pub fn main() void {
     if (@import("builtin").os.tag == .windows) {
         if (std.os.windows.kernel32.SetConsoleOutputCP(65001) == 0) {
+            std.log.err("Your windows console does not support UTF-8, try using Windows Terminal {s}", .{"https://apps.microsoft.com/store/detail/windows-terminal/9N0DX20HK701?hl=en-us&gl=US"});
             std.os.exit(5);
         }
     }
@@ -57,14 +58,14 @@ pub fn consoleApp() !void {
     }
     if (options.options.bottomiffy == null and options.options.regress == null) {
         try help();
-        try stderr.writer().print("You have to specify either bottomify or regress OwO", .{});
+        try stderr.writer().writeAll("You have to specify either bottomify or regress OwO");
         std.os.exit(1);
     }
     var bottomiffy_option: bool = options.options.bottomiffy orelse false;
     var regress_option: bool = options.options.regress orelse false;
     if (bottomiffy_option and regress_option) {
         try help();
-        try stderr.writer().print("You cannot use both bottomify and regress UwU", .{});
+        try stderr.writer().writeAll("You cannot use both bottomify and regress UwU");
         std.os.exit(1);
     }
 
@@ -94,18 +95,34 @@ pub fn bottomiffy(fileInput: std.fs.File, fileOutput: std.fs.File) !void {
     var bufferOut: std.io.BufferedWriter(bufferSize * bottom.encoder.max_expansion_per_byte, std.fs.File.Writer) = .{ .unbuffered_writer = fileOutput.writer() };
     var bufferBottom: [bufferSize * bottom.encoder.max_expansion_per_byte]u8 = undefined;
     var buffer: [bufferSize]u8 = undefined;
-
     var size: usize = 1;
+    defer bufferOut.flush() catch |err| {
+        std.log.err("Error while flushing output: {}", .{err});
+        std.os.exit(3);
+    };
+    if (fileInput.handle == std.io.getStdIn().handle) {
+        var stdin_buffer = bufferInput.reader().readUntilDelimiter(&buffer, '\n') catch |err| {
+            std.log.err("Error while reading input from stdin: {}, the max buffer size on console is {d}", .{ err, bufferSize });
+            std.os.exit(1);
+        };
+        var outbuffer: []u8 = bottom.encoder.encode(stdin_buffer, &bufferBottom);
+        _ = try bufferOut.writer().writeAll(outbuffer);
+        if(fileOutput.handle == std.io.getStdOut().handle) {
+            _ = try bufferOut.writer().write("\n");
+        }
+        buffer = undefined;
+        bufferBottom = undefined;
+        return;
+    }
     while (size != 0) {
         size = try bufferInput.read(&buffer);
         if (size > 0) {
             var outbuffer: []u8 = bottom.encoder.encode(buffer[0 .. size - 1], &bufferBottom);
-            _ = try bufferOut.write(outbuffer);
+            _ = try bufferOut.writer().writeAll(outbuffer);
             buffer = undefined;
             bufferBottom = undefined;
         }
     }
-    try bufferOut.flush();
 }
 pub fn regress(fileInput: std.fs.File, fileOutput: std.fs.File) !void {
     var bufferInput: std.io.BufferedReader(bufferSize, std.fs.File.Reader) = .{ .unbuffered_reader = fileInput.reader() };
