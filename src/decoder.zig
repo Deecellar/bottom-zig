@@ -8,14 +8,14 @@ const help_text = @embedFile("help.txt");
 pub const BottomDecoder = struct {
     const decodeHash = GetDecodeHash();
     pub fn decodeAlloc(str: []const u8, allocator: std.mem.Allocator) ![]u8 {
-        var len = try std.math.divCeil(usize, str.len, bottom.max_expansion_per_byte);
+        var len = @maximum( try std.math.divCeil(usize, str.len, bottom.max_expansion_per_byte), 40);
         var memory = try allocator.alloc(u8, (len - 1) * 2);
         return decode(str, memory);
     }
 
     pub fn decode(str: []const u8, buffer: []u8) ![]u8 {
         var iter = std.mem.split(u8, str, "👉👈");
-        var index: u64 = 0;
+        var index: usize = 0;
         while (iter.next()) |owo| {
             if (owo.len == 0) {
                 continue;
@@ -45,7 +45,7 @@ pub const BottomDecoder = struct {
     pub fn decodeByte(byte: []const u8) ?u8 {
         var res: [40]u8 = std.mem.zeroes([40]u8);
         var text = "👉👈";
-        if(byte.len > 40) return null;
+        if (byte.len > 40) return null;
         @memcpy(res[0..], byte.ptr, byte.len); // This is less than 40 always
         @memcpy(res[byte.len..].ptr, text, text.len); // There is always enough space
         return decodeHash.get(&res);

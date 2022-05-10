@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Example of bottom-zig online</title>
+    <script src="https://unpkg.com/tailwindcss-jit-cdn"></script>
+</head>
+
+<body>
+    <div class="container mx-auto">
+        <div class="flex flex-col items-center">
+            <div class="flex-1">
+                <h1 class="text-center text-3xl font-bold">Example of bottom-zig online</h1>
+                <p class="text-center text-xl">
+                    This is a simple example on the bottom-zig library.
+                </p>
+            </div>
+            <!-- We make a form with 2 text boxes and a button in between -->
+            <div class="flex-1">
+                <div class="flex flex-col items-center">
+                    <div class="flex-1">
+                        <!-- Input box for encoded/decoded text-->
+                        <textarea type="text" class="border border-gray-400 p-2 w-full" id="text"
+                            placeholder="Enter text here"></textarea>
+                        <!-- Buttons for Bottomify, regress and swap result and input boxes-->
+
+                        <div class="flex flex-row justify-center">
+                            <button class="border border-gray-400 p-2 m-2 w-32" id="bottomify">Bottomify</button>
+                            <button class="border border-gray-400 p-2 m-2 w-32" id="regress">Regress</button>
+                            <button class="border border-gray-400 p-2 m-2 w-32" id="swap">Swap</button>
+                        </div>
+
+                        <!-- Result box for encoded/decoded text-->
+                        <textarea type="text" class="border border-gray-400 p-2 w-full" id="result" placeholder="Result"
+                            disabled></textarea>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Just a normal alert notification when things go wrong-->
+        <div class="flex flex-col items-center">
+            <div class="flex-1">
+                <div class="hidden" id="alert">
+                    <div class="bg-red-500 text-white font-bold p-2 m-2 rounded-lg">
+                        <p class="text-center">Something went wrong!</p>
+                        <div id="extra">
+                            <p>Nooooo</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+<script>
+
+    // We load the wasm module at wasm/bottom-zig.wasm with the promise/then method
+    var obj = null;
+        	function readString(addr, len) {
+                    let utf8Decoder = new TextDecoder();
+                    let view = new Uint8Array(obj.instance.exports.memory.buffer);
+
+                    return utf8Decoder.decode(view.slice(addr, addr + len));
+                }
+    const wasm = fetch("wasm/bottom-zig.wasm").then(response => response.arrayBuffer()).then(buffer => {
+        return WebAssembly.instantiate(buffer, {
+            env: {
+                memoryBase: 0,
+                tableBase: 0,
+                memory: new WebAssembly.Memory({
+                    initial: 2
+                }),
+                setResult: (ptr, len) => {
+                    document.getElementById("result").value = readString(ptr, len);
+                },
+                getText: () => {
+                    // We get the text from the input box 
+                    let text = document.getElementById("text").value;
+                    // We convert the text to a Uint8Array
+                    let textArray = new Uint8Array(obj.instance.exports.memory.buffer);
+                    let textLen = new TextEncoder().encode(text);
+                    textArray = textArray.subarray(0, textLen.length + 1);
+                    // We copy the text to the Uint8Array
+                    for (let i = 0; i < text.length; i++) {
+                        textArray[i] = text.charCodeAt(i);
+                    }
+                    textArray[text.length] = 0;
+
+                    // We return the Uint8Array
+                    return textArray.byteOffset;
+                },
+                appendException: (ptr, len) => {
+                    let result = new Uint8Array(obj.instance.exports.memory.buffer, ptr, len);
+                    // We append the result as a new paragraph in the alert box
+                    document.getElementById("extra").appendChild(document.createElement("p")).innerHTML = readString(ptr, len);
+                    // we show the alert box
+                    document.getElementById("alert").classList.remove("hidden");
+
+                },
+                hideException: () => {
+                    document.getElementById("alert").classList.add("hidden");
+                    // we clear the alert box
+                    document.getElementById("extra").innerHTML = "";
+                },
+                logus: (ptr, len) => {
+                    let result = new Uint8Array(obj.instance.exports.memory.buffer, ptr, len);
+                    console.log(readString(ptr, len));
+                },
+
+
+            }
+        });
+    }).then(module => {
+        obj = module;
+
+        const {
+            encode,
+            decode,
+            _start
+        } = module.instance.exports;
+        _start();
+
+        // We define the buttons and the input boxes
+        const text = document.getElementById("text");
+        const result = document.getElementById("result");
+        const bottomify = document.getElementById("bottomify");
+        const regress = document.getElementById("regress");
+        const swap = document.getElementById("swap");
+
+        // we set encode and decode to the buttons
+        bottomify.addEventListener("click", () => {
+            encode();
+        });
+        regress.addEventListener("click", () => {
+            decode();
+        }
+        );
+        swap.addEventListener("click", () => {
+            // We swap the input and result boxes
+            let temp = text.value;
+            text.value = result.value;
+            result.value = temp;
+        });
+
+    });
+</script>
+
+</html>

@@ -51,6 +51,7 @@ pub fn build(b: *std.build.Builder) void {
     // Standard release options allow the person running `zig build` to select
     // between Debug, ReleaseSafe, ReleaseFast, and ReleaseSmall.
     const mode = b.standardReleaseOptions();
+    const install_lib_step = b.step("install-lib", "Install library only");
 
     const exe = b.addExecutable("bottom-zig", "src/main.zig");
     for (packages) |p| {
@@ -86,7 +87,35 @@ pub fn build(b: *std.build.Builder) void {
     if (use_c) {
         lib.linkLibC();
     }
-    lib.install();
+    lib.install(); // Only works in install
+
+    const slib = b.addSharedLibrary("bottom-zig", "bottom.zig", .unversioned);
+    slib.setTarget(target);
+    slib.setBuildMode(mode);
+    slib.addOptions("build_options", options);
+    if (use_c) {
+        slib.linkLibC();
+    }
+    slib.install(); // Only works in install
+
+    install_lib_step.dependOn(&slib.step);
+    const install_only_shared = b.addInstallArtifact(slib);
+    install_lib_step.dependOn(&install_only_shared.step);
+
+    install_lib_step.dependOn(&lib.step);
+    const install_only = b.addInstallArtifact(lib);
+    install_lib_step.dependOn(&install_only.step);
+
+    const wasm_shared = b.addSharedLibrary("bottom-zig", "src/wasm-example.zig", .unversioned);
+    wasm_shared.setTarget(std.zig.CrossTarget{ .abi = .musl, .os_tag = .freestanding, .cpu_arch = .wasm32 });
+    wasm_shared.setBuildMode(mode);
+    wasm_shared.override_dest_dir = std.build.InstallDir{ .custom = "../public/wasm/" };
+
+    const wasm_shared_step = b.step("wasm-shared", "Build the WASM example");
+    wasm_shared_step.dependOn(&wasm_shared.step);
+
+    const install_to_public = b.addInstallArtifact(wasm_shared);
+    wasm_shared_step.dependOn(&install_to_public.step);
 
     const exe2 = b.addExecutable("benchmark", "src/benchmark.zig");
     exe2.addPackage(pkgs.bottom);
@@ -107,6 +136,7 @@ pub fn build(b: *std.build.Builder) void {
     run_step2.dependOn(&run_cmd2.step);
 
     const test_lib = b.addTest("bottom.zig");
+    test_lib.setTarget(target);
     test_lib.setBuildMode(mode);
 
     const test_lib_step = b.step("test-lib", "Run unit tests for the Library");
