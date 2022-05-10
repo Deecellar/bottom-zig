@@ -1,10 +1,11 @@
 const std = @import("std");
 const bottom = @import("bottom");
 const args = @import("zig-args");
+const builtin = @import("builtin");
 const build_options = @import("build_options");
 const help_text = @embedFile("help.txt");
 const bufferSize = 128 * 1024;
-
+const newline = if(builtin.os.tag == .windows) "\r\n" else "\n";
 /// We create options similar to bottom RS
 const Options = struct {
     bottomiffy: ?bool = null,
@@ -23,13 +24,16 @@ const Options = struct {
     };
 };
 pub fn main() void {
-    if (@import("builtin").os.tag == .windows) {
+    if(builtin.os.tag == .windows) {
         if (std.os.windows.kernel32.SetConsoleOutputCP(65001) == 0) {
-            std.log.err("Your windows console does not support UTF-8, try using Windows Terminal {s}", .{"https://apps.microsoft.com/store/detail/windows-terminal/9N0DX20HK701?hl=en-us&gl=US"});
+            std.log.err("Your windows console does not support UTF-8, try using Windows Terminal at: {s}", .{"https://apps.microsoft.com/store/detail/windows-terminal/9N0DX20HK701?hl=en-us&gl=US"});
             std.os.exit(5);
         }
     }
-    consoleApp() catch {};
+    consoleApp() catch |err| {
+        std.log.err("The program exited with the following error: {}", .{err});
+        std.log.err("if you are writting to terminal, see if you can write to it normal, if your are pointing to a file, please check you have enough space or the right permissions", .{});
+    };
 }
 pub fn consoleApp() !void {
     var allocator: std.mem.Allocator = undefined;
@@ -105,10 +109,10 @@ pub fn bottomiffy(fileInput: std.fs.File, fileOutput: std.fs.File) !void {
             std.log.err("Error while reading input from stdin: {}, the max buffer size on console is {d}", .{ err, bufferSize });
             std.os.exit(1);
         };
-        var outbuffer: []u8 = bottom.encoder.encode(stdin_buffer, &bufferBottom);
+        var outbuffer: []u8 = bottom.encoder.encode(stdin_buffer[0..stdin_buffer.len - (newline.len - 1)], &bufferBottom);
         _ = try bufferOut.writer().writeAll(outbuffer);
-        if(fileOutput.handle == std.io.getStdOut().handle) {
-            _ = try bufferOut.writer().write("\n");
+        if (fileOutput.handle == std.io.getStdOut().handle) {
+            _ = try bufferOut.writer().write(newline);
         }
         buffer = undefined;
         bufferBottom = undefined;
@@ -130,16 +134,39 @@ pub fn regress(fileInput: std.fs.File, fileOutput: std.fs.File) !void {
     var bufferRegress: [bufferSize * bottom.encoder.max_expansion_per_byte]u8 = undefined;
     var buffer: [bufferSize]u8 = undefined;
     var temp: []u8 = &@as([1]u8, undefined);
+        defer bufferOut.flush() catch |err| {
+        std.log.err("Error while flushing output: {}", .{err});
+        std.os.exit(3);
+    };
+    if (fileInput.handle == std.io.getStdIn().handle) {
+        var stdin_buffer = bufferInput.reader().readUntilDelimiter(&buffer, '\n') catch |err| {
+            std.log.err("Error while reading input from stdin: {}, the max buffer size on console is {d}", .{ err, bufferSize });
+            std.os.exit(1);
+        };
+        var outbuffer: []u8 = bottom.decoder.decode(stdin_buffer[0..stdin_buffer.len - (newline.len - 1)], bufferRegress[0..(buffer.len/bottom.encoder.max_expansion_per_byte - 1 ) * 2 ]) catch |err| {
+            std.log.err("Error while decoding input from stdin: {}", .{ err });
+            std.os.exit(1);
+        };
+        _ = try bufferOut.writer().writeAll(outbuffer);
+        if (fileOutput.handle == std.io.getStdOut().handle) {
+            _ = try bufferOut.writer().write(newline);
+        }
+        buffer = undefined;
+        bufferRegress = undefined;
+        return;
+    }
     while (temp.len != 0) {
-        temp = (try bufferInput.reader().readUntilDelimiterOrEof(&buffer, "👈"[3])) orelse &@as([0]u8, undefined);
+        temp = (try bufferInput.reader().readUntilDelimiterOrEof(&buffer, "👈"[4])) orelse &@as([0]u8, undefined);
         if (temp.len > 0) {
-            var outbuffer: u8 = bottom.decoder.decodeByte(temp[0 .. temp.len - 7]);
+            var outbuffer: u8 = bottom.decoder.decodeByte(temp[0 .. temp.len - 7]) orelse {
+            std.log.err("Error while decoding input from stdin: {}", .{ error.invalid_input });
+            std.os.exit(1);
+        };
             _ = try bufferOut.writer().writeByte(outbuffer);
             buffer = undefined;
             bufferRegress = undefined;
         }
     }
-    try bufferOut.flush();
 }
 pub fn help() !void {
     try std.io.getStdOut().writer().writeAll(help_text);

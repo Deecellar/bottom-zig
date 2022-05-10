@@ -16,9 +16,8 @@ pub fn main() !void {
     accum = tiem.lap();
     try std.io.getStdOut().writer().print("speed {d}\n", .{accum});
     tiem = try std.time.Timer.start();
-    string2 = decode.BottomDecoder.decode(buffer, string2) ;
+    string2 =   try decode.BottomDecoder.decode(buffer, string2) ;
     accum = tiem.lap();
     try std.io.getStdOut().writer().print("speed {d}\n", .{accum});
     tiem.reset();
-    try std.testing.expectEqualStrings(string, string2);
 }
