@@ -3,7 +3,7 @@ const encode = @import("encoder.zig");
 const decode = @import("decoder.zig");
 // Make proper Benchmarking
 pub fn main() !void {
-    var tiem: std.time.Timer = undefined;
+    var time: std.time.Timer = undefined;
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     var string: []u8 = try gpa.allocator().alloc(u8, 1024 * 1024 * 10);
     var string2: []u8 = try gpa.allocator().alloc(u8, 1024 * 1024 * 10);
@@ -11,13 +11,16 @@ pub fn main() !void {
     var rand = std.rand.DefaultPrng.init(491249);
     rand.fill(string);
     var accum: u64 = 0;
-    tiem = try std.time.Timer.start();
+    time = try std.time.Timer.start();
     buffer = encode.BottomEncoder.encode(string, buffer);
-    accum = tiem.lap();
+    accum = time.lap();
     try std.io.getStdOut().writer().print("speed {d}\n", .{accum});
-    tiem = try std.time.Timer.start();
-    string2 =   try decode.BottomDecoder.decode(buffer, string2) ;
-    accum = tiem.lap();
+    var size = string.len / 40;
+    rand.fill(buffer[0..size]);
+    var out =try  encode.BottomEncoder.encodeAlloc(buffer[0..size], gpa.allocator());
+    time.reset();
+    string2 = try decode.BottomDecoder.decode(out, string2);
+    accum = time.lap();
     try std.io.getStdOut().writer().print("speed {d}\n", .{accum});
-    tiem.reset();
+    time.reset();
 }
