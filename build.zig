@@ -109,7 +109,7 @@ pub fn build(b: *std.build.Builder) void {
     const wasm_shared = b.addSharedLibrary("bottom-zig", "src/wasm-example.zig", .unversioned);
     wasm_shared.setTarget(std.zig.CrossTarget{ .abi = .musl, .os_tag = .freestanding, .cpu_arch = .wasm32 });
     wasm_shared.setBuildMode(.ReleaseFast);
-    wasm_shared.override_dest_dir = std.build.InstallDir{ .custom = "../public/wasm/" };
+    wasm_shared.override_dest_dir = std.build.InstallDir{ .custom = "../public/" };
 
     const wasm_shared_step = b.step("wasm-shared", "Build the WASM example");
     wasm_shared_step.dependOn(&wasm_shared.step);

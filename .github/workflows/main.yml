@@ -40,10 +40,6 @@ jobs:
       - name: Create Wasm Example
         run: zig build wasm-shared
         
-      - name: check-public
-        if: ${{ matrix.os == 'ubuntu-latest' }}
-        run: ls public
-        
       - name: Deploy Github Pages
         if: ${{ matrix.os == 'ubuntu-latest' }}
         uses: rayluo/github-pages-overwriter@v1.2

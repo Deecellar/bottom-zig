@@ -65,7 +65,7 @@
 
         return utf8Decoder.decode(view.slice(addr, addr + len));
     }
-    const wasm = fetch("wasm/bottom-zig.wasm").then(response => response.arrayBuffer()).then(buffer => {
+    const wasm = fetch("bottom-zig.wasm").then(response => response.arrayBuffer()).then(buffer => {
         return WebAssembly.instantiate(buffer, {
             env: {
                 memoryBase: 0,
