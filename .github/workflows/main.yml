@@ -61,7 +61,7 @@ jobs:
             sed -e '1,5d' < README.md > artifacts/${target}/README.md
             cp LICENSE artifacts/${target}/
             cd artifacts/${target}/
-            tar cfJ ${target}.tar.xz *.md bin/*
+            tar cfJ ${target}.tar.xz *.md bin/* LICENSE
             mv ${target}.tar.xz ../
             cd ../..
           done
