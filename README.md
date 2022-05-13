@@ -1,9 +1,8 @@
 # Bottom-Zig
 
-This in an implementaion of the Bottom Spec in Zig, now, this really a bad implementation, it decodes and encodes fine enough, decodes fine enough, but decoding is slow as fuck just because I did not wanna use a hashmap =)
-on the other hand, I did not use much of error control nor fine user interface, this will crash on you and it will be the same as it would've succeded
-Why I am publishing something incomplete, since I don't care =3
-
+This in an implementaion of the Bottom Spec in Zig.
+I did not use much of error control nor fine user interface, this could have better things, but oh well
+Completly serious no joke at all not meme program /s
 # Features
 
 - Encodes the bottom format
@@ -14,6 +13,8 @@ Why I am publishing something incomplete, since I don't care =3
 # Things that does not work
 
 - My doc comments and comments
+- Errors are a bit not user friendly
+
 
 # Will I continue
 
@@ -25,13 +26,18 @@ To build you need to clone with `git clone https://github.com/Deecellar/bottom-z
 after the fact you can use `zig build` and it should work.
 
 Note that you can use to tune performance -Drelease-safe (To get errors with more detail) -Drelease-fast (Fast performance) and -Drelease-small (Small binary)
-You can also use it as a lib referencing bottom.zig in your code =)
+You can also use it as a lib using zig referencing bottom.zig in your code =) 
 
+# Releases
+I will not do semver to do a release per se not a specifc thing here, so here you go, the closest to that is this =P
+https://deecellar.github.io/bottom-zig/ - Wasm usage on bottom-zig
+If you want a native binary, in the CI, the lastest job called "CI" will have artifacts for linux, mac and windows (x86_64)
 # Thanks to
 
 - Andrew for making an awesome language
 - MasterQ32 for making zig args and being awesome
 - der-teufel-programming for saying I should do this
+- bnuuy
 - #offtopic for being a funny place
 - Dunno?
 - My Top?
