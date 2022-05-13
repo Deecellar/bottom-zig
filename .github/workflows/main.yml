@@ -36,15 +36,18 @@ jobs:
 
       - name: Run Tests
         run: zig build test-lib
-      # Runs a set of commands using the runners shell
+
       - name: Create Wasm Example
         run: zig build wasm-shared
+        
+      - name: check-public
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        run: ls public
         
       - name: Deploy Github Pages
         if: ${{ matrix.os == 'ubuntu-latest' }}
         uses: rayluo/github-pages-overwriter@v1.2
         with:
-          # [Optional] Determine the directory contains source code. Defaults to "docs"
           source-directory: public
       - name: Build artifacts
         if: ${{ matrix.os == 'ubuntu-latest' }}
