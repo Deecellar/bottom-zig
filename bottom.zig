@@ -1,7 +1,7 @@
 pub const encoder = @import("src/encoder.zig").BottomEncoder;
 pub const decoder = @import("src/decoder.zig").BottomDecoder;
 
-test {
+comptime {
     _ = encoder;
     _ = decoder;    
 }

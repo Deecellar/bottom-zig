@@ -8,7 +8,7 @@ const help_text = @embedFile("help.txt");
 pub const BottomDecoder = struct {
     const decodeHash = GetDecodeHash();
     pub fn decodeAlloc(str: []const u8, allocator: std.mem.Allocator) ![]u8 {
-        var len = @maximum( try std.math.divCeil(usize, str.len, bottom.max_expansion_per_byte), 40);
+        var len = @maximum(try std.math.divCeil(usize, str.len, bottom.max_expansion_per_byte), 40);
         var memory = try allocator.alloc(u8, (len - 1) * 2);
         return decode(str, memory);
     }
@@ -18,7 +18,7 @@ pub const BottomDecoder = struct {
         var index: usize = 0;
         while (iter.next()) |owo| {
             if (owo.len == 0) {
-                continue;
+                break;
             }
             buffer[index] = decodeByte(owo) orelse return error.invalid_input;
             index += 1;
@@ -48,7 +48,8 @@ pub const BottomDecoder = struct {
         if (byte.len > 40) return null;
         @memcpy(res[0..], byte.ptr, byte.len); // This is less than 40 always
         @memcpy(res[byte.len..].ptr, text, text.len); // There is always enough space
-        return decodeHash.get(&res);
+        var result = decodeHash.get(&res);
+        return result;
     }
 };
 test "decoder works" {
@@ -56,4 +57,66 @@ test "decoder works" {
     const res = try BottomDecoder.decodeAlloc(@"😈", std.testing.allocator);
     defer std.testing.allocator.free(res);
     try std.testing.expectEqualStrings("hello world!", res);
+}
+
+comptime {
+    _ = BottomDecoder.decodeHash.kvs;
+    _ = BottomDecoder.decodeHash.has("0");
+    _ = BottomDecoder.decodeHash.get("0");
+}
+
+test "All bytes possible values are decodable" {
+    var byte: u8 = @truncate(u8, 0);
+    var buffer: [40]u8 = std.mem.zeroes([40]u8);
+    var encode: []u8 = undefined;
+    var result: u8 = undefined;
+    for (@as([256]u0, undefined)) |_, index| {
+        byte = @truncate(u8, index);
+        encode = bottom.encodeByte(byte, &buffer);
+        result = BottomDecoder.decodeByte(encode[0 .. encode.len - 8]) orelse {
+            std.log.err("Error", .{});
+            std.log.err("value of byte: {d} unexpected", .{byte});
+            std.log.err("value of byte encoded: {s} unexpected", .{encode});
+            return error.invalid_input;
+        };
+        try std.testing.expectEqual(byte, result);
+    }
+}
+
+test "All bytes decodeable in decode" {
+    var byte: u8 = @truncate(u8, 0);
+    var buffer: [40]u8 = std.mem.zeroes([40]u8);
+    var encode: []u8 = undefined;
+    var result: []u8 = undefined;
+    for (@as([256]u0, undefined)) |_, index| {
+        byte = @truncate(u8, index);
+        encode = bottom.encodeByte(byte, &buffer);
+        result = BottomDecoder.decode(encode, &buffer) catch |err| {
+            std.log.err("Error", .{});
+            std.log.err("value of byte: {d} unexpected", .{byte});
+            std.log.err("value of byte encoded: {s} unexpected", .{encode});
+            return err;
+        };
+        try std.testing.expectEqual(byte, result[0]);
+    }
+}
+
+test "All bytes decodeable in decodeAlloc" {
+    var byte: u8 = @truncate(u8, 0);
+    var buffer: [40]u8 = undefined;
+    var encode: []u8 = undefined;
+    var result: []u8 = undefined;
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    for (@as([256]u0, undefined)) |_, index| {
+        byte = @truncate(u8, index);
+        encode = bottom.encodeByte(byte, &buffer);
+        result = BottomDecoder.decodeAlloc(encode, arena.allocator()) catch |err| {
+            std.log.err("Error", .{});
+            std.log.err("value of byte: {d} unexpected", .{byte});
+            std.log.err("value of byte encoded: {s} unexpected", .{encode});
+            return err;
+        };
+        try std.testing.expectEqual(byte, result[0]);
+    }
 }

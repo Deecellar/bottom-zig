@@ -14,13 +14,13 @@ pub fn main() !void {
     time = try std.time.Timer.start();
     buffer = encode.BottomEncoder.encode(string, buffer);
     accum = time.lap();
-    try std.io.getStdOut().writer().print("speed {d}\n", .{accum});
+    try std.io.getStdOut().writer().print("speed {d}\n", .{accum / std.time.ns_per_ms});
     var size = string.len / 40;
     rand.fill(buffer[0..size]);
-    var out =try  encode.BottomEncoder.encodeAlloc(buffer[0..size], gpa.allocator());
+    var out = try encode.BottomEncoder.encodeAlloc(buffer[0..size], gpa.allocator());
     time.reset();
     string2 = try decode.BottomDecoder.decode(out, string2);
     accum = time.lap();
-    try std.io.getStdOut().writer().print("speed {d}\n", .{accum});
+    try std.io.getStdOut().writer().print("speed {d}\n", .{accum / std.time.ns_per_ms});
     time.reset();
 }

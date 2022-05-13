@@ -48,7 +48,6 @@
                     <div class="bg-red-500 text-white font-bold p-2 m-2 rounded-lg">
                         <p class="text-center">Something went wrong!</p>
                         <div id="extra">
-                            <p>Nooooo</p>
                         </div>
                     </div>
                 </div>
@@ -60,12 +59,12 @@
 
     // We load the wasm module at wasm/bottom-zig.wasm with the promise/then method
     var obj = null;
-        	function readString(addr, len) {
-                    let utf8Decoder = new TextDecoder();
-                    let view = new Uint8Array(obj.instance.exports.memory.buffer);
+    function readString(addr, len) {
+        let utf8Decoder = new TextDecoder();
+        let view = new Uint8Array(obj.instance.exports.memory.buffer);
 
-                    return utf8Decoder.decode(view.slice(addr, addr + len));
-                }
+        return utf8Decoder.decode(view.slice(addr, addr + len));
+    }
     const wasm = fetch("wasm/bottom-zig.wasm").then(response => response.arrayBuffer()).then(buffer => {
         return WebAssembly.instantiate(buffer, {
             env: {
@@ -83,15 +82,16 @@
                     // We convert the text to a Uint8Array
                     let textArray = new Uint8Array(obj.instance.exports.memory.buffer);
                     let textLen = new TextEncoder().encode(text);
-                    textArray = textArray.subarray(0, textLen.length + 1);
-                    // We copy the text to the Uint8Array
-                    for (let i = 0; i < text.length; i++) {
-                        textArray[i] = text.charCodeAt(i);
-                    }
-                    textArray[text.length] = 0;
+                    textArray.set(textLen);
 
                     // We return the Uint8Array
                     return textArray.byteOffset;
+                },
+                getTextLen: () => {
+                    let text = document.getElementById("text").value;
+                    let textLen = new TextEncoder().encode(text);
+
+                    return textLen.length;
                 },
                 appendException: (ptr, len) => {
                     let result = new Uint8Array(obj.instance.exports.memory.buffer, ptr, len);
