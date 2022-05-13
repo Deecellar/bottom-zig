@@ -43,7 +43,7 @@ jobs:
         
       - name: Deploy Github Pages
         if: ${{ matrix.os == 'ubuntu-latest' }}
-        uses: ptienchuan/deploy-github-pages-action@1.0.0
+        uses: rayluo/github-pages-overwriter@v1.2
         with:
           # [Optional] Determine the directory contains source code. Defaults to "docs"
           source-directory: public
