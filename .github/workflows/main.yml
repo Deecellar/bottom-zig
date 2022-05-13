@@ -39,7 +39,11 @@ jobs:
 
       - name: Create Wasm Example
         run: zig build wasm-shared
-        
+      
+      - name: Prepare Github Page Export
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        run: rm .gitignore #Hope this make it 
+
       - name: Deploy Github Pages
         if: ${{ matrix.os == 'ubuntu-latest' }}
         uses: rayluo/github-pages-overwriter@v1.2
