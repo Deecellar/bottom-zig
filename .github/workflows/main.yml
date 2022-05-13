@@ -36,7 +36,7 @@ jobs:
         run: zig build
 
       - name: Run Tests
-        run: zig build test
+        run: zig build test-lib
       # Runs a set of commands using the runners shell
       - name: Create Wasm Example
         run: zig build wasm-shared
