@@ -6,7 +6,7 @@ on:
   push:
   pull_request:
   schedule:
-    - cron: '0 0 * * *'
+    - cron: '0 0 * * *' #Makes sense, we are testing against master
   workflow_dispatch:
 
 jobs:
@@ -30,7 +30,7 @@ jobs:
       - run: zig env
       
       - name: Git Submoudles Init
-        uses: chris-short/github-action-git-submodules@v0.1.0
+        uses: snickerbockers/submodules-init@v4
 
       - name: Build
         run: zig build
