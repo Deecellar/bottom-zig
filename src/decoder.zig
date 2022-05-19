@@ -53,16 +53,15 @@ pub const BottomDecoder = struct {
     }
 };
 test "decoder works" {
+    if (@import("builtin").os.tag == .windows) {
+        if (std.os.windows.kernel32.SetConsoleOutputCP(65001) == 0) {
+            return error.console_not_support_utf8;
+        }
+    }
     const @"😈" = "💖💖,,,,👉👈💖💖,👉👈💖💖🥺,,,👉👈💖💖🥺,,,👉👈💖💖✨,👉👈✨✨✨,,👉👈💖💖✨🥺,,,,👉👈💖💖✨,👉👈💖💖✨,,,,👉👈💖💖🥺,,,👉👈💖💖👉👈✨✨✨,,,👉👈";
     const res = try BottomDecoder.decodeAlloc(@"😈", std.testing.allocator);
     defer std.testing.allocator.free(res);
     try std.testing.expectEqualStrings("hello world!", res);
-}
-
-comptime {
-    _ = BottomDecoder.decodeHash.kvs;
-    _ = BottomDecoder.decodeHash.has("0");
-    _ = BottomDecoder.decodeHash.get("0");
 }
 
 test "All bytes possible values are decodable" {

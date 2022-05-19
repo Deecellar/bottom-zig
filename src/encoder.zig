@@ -61,7 +61,7 @@ pub const BottomEncoder = struct {
 test "encode works" {
     if (@import("builtin").os.tag == .windows) {
         if (std.os.windows.kernel32.SetConsoleOutputCP(65001) == 0) {
-            std.os.exit(12);
+            return error.console_not_support_utf8;
         }
     }
     const a = "💖💖,,,,👉👈💖💖,👉👈💖💖🥺,,,👉👈💖💖🥺,,,👉👈💖💖✨,👉👈✨✨✨,,👉👈💖💖✨🥺,,,,👉👈💖💖✨,👉👈💖💖✨,,,,👉👈💖💖🥺,,,👉👈💖💖👉👈✨✨✨,,,👉👈";
