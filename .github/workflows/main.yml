@@ -43,6 +43,12 @@ jobs:
       - name: Prepare Github Page Export
         if: ${{ matrix.os == 'ubuntu-latest' }}
         run: rm .gitignore #Hope this make it 
+        
+      - name: Minimify Page export
+        uses: zugazagoitia/minify-js@v0.4
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        with:
+          directory: public/
 
       - name: Deploy Github Pages
         if: ${{ matrix.os == 'ubuntu-latest' }}
