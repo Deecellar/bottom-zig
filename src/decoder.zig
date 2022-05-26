@@ -4,12 +4,17 @@ const ByteEnum = @import("encoder.zig").ByteEnum;
 const mem = @import("zig-native-vector");
 const help_text = @embedFile("help.txt");
 
+pub const DecoderError = error{
+    invalid_input,
+} || std.mem.Allocator.Error;
+
 /// This struct is just a namespace for the decoder
 pub const BottomDecoder = struct {
     const decodeHash = GetDecodeHash();
-    pub fn decodeAlloc(str: []const u8, allocator: std.mem.Allocator) ![]u8 {
-        var len = @maximum(try std.math.divCeil(usize, str.len, bottom.max_expansion_per_byte), 40);
+    pub fn decodeAlloc(str: []const u8, allocator: std.mem.Allocator) DecoderError![]u8 {
+        var len = @maximum(std.math.divCeil(usize, str.len, bottom.max_expansion_per_byte) catch str.len, 40);
         var memory = try allocator.alloc(u8, (len - 1) * 2);
+        errdefer allocator.free(memory);
         return decode(str, memory);
     }
 

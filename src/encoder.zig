@@ -14,7 +14,7 @@ pub const ByteEnum = enum(u8) {
 /// This is just a namespace for the bottom encoder
 pub const BottomEncoder = struct {
     pub const max_expansion_per_byte = 40;
-    pub fn encodeAlloc(str: []const u8, allocator: std.mem.Allocator) ![]u8 {
+    pub fn encodeAlloc(str: []const u8, allocator: std.mem.Allocator) std.mem.Allocator.Error![]u8 {
         const memory = try allocator.alloc(u8, str.len * max_expansion_per_byte);
         return encode(str, memory);
     }

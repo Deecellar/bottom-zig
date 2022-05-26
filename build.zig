@@ -45,7 +45,7 @@ pub fn build(b: *std.build.Builder) void {
 
     var options = b.addOptions();
     options.addOption(bool, "use_c", use_c);
-    options.addOption([]const u8, "version", "v0.0.2");
+    options.addOption([]const u8, "version", "v0.0.3");
     const target = b.standardTargetOptions(.{});
 
     // Standard release options allow the person running `zig build` to select
@@ -80,7 +80,7 @@ pub fn build(b: *std.build.Builder) void {
     const test_step = b.step("test-exe", "Run unit tests for the CLI App");
     test_step.dependOn(&exe_tests.step);
 
-    const lib = b.addStaticLibrary("bottom-zig", "bottom.zig");
+    const lib = b.addStaticLibrary("bottom-zig", "src/clib.zig");
     lib.setTarget(target);
     lib.setBuildMode(mode);
     lib.addOptions("build_options", options);
@@ -89,7 +89,7 @@ pub fn build(b: *std.build.Builder) void {
     }
     lib.install(); // Only works in install
 
-    const slib = b.addSharedLibrary("bottom-zig", "bottom.zig", .unversioned);
+    const slib = b.addSharedLibrary("bottom-zig", "src/clib.zig", .unversioned);
     slib.setTarget(target);
     slib.setBuildMode(mode);
     slib.addOptions("build_options", options);
@@ -98,18 +98,24 @@ pub fn build(b: *std.build.Builder) void {
     }
     slib.install(); // Only works in install
 
+    b.installDirectory(std.build.InstallDirectoryOptions {
+        .source_dir = "include",
+        .install_dir = .header,
+        .install_subdir = "bottom",
+    });
+
+
+
     install_lib_step.dependOn(&slib.step);
     const install_only_shared = b.addInstallArtifact(slib);
     install_lib_step.dependOn(&install_only_shared.step);
-
     install_lib_step.dependOn(&lib.step);
     const install_only = b.addInstallArtifact(lib);
     install_lib_step.dependOn(&install_only.step);
-
     const wasm_shared = b.addSharedLibrary("bottom-zig", "src/wasm-example.zig", .unversioned);
     wasm_shared.setTarget(std.zig.CrossTarget{ .abi = .musl, .os_tag = .freestanding, .cpu_arch = .wasm32 });
     wasm_shared.setBuildMode(.ReleaseSmall);
-    wasm_shared.strip = true;
+    //wasm_shared.strip = true;
     wasm_shared.override_dest_dir = std.build.InstallDir{ .custom = "../public/wasm/" };
 
     const wasm_shared_step = b.step("wasm-shared", "Build the WASM example");
@@ -123,6 +129,17 @@ pub fn build(b: *std.build.Builder) void {
     exe2.setTarget(target);
     exe2.setBuildMode(.ReleaseFast);
     exe2.install();
+
+    const clib_exe = b.addExecutable("clib", null);
+    clib_exe.linkLibC();
+    clib_exe.linkLibrary(lib);
+    clib_exe.addIncludePath("zig-out/include");
+    clib_exe.addCSourceFile("src/example.c", &.{});
+    clib_exe.setTarget(target);
+    clib_exe.setBuildMode(mode);
+    clib_exe.install();
+
+    clib_exe.step.dependOn(&lib.step);
 
     const benchmark_step = b.step("benchmark", "Run benchmarks");
     benchmark_step.dependOn(&exe2.step);
