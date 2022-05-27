@@ -48,7 +48,7 @@ pub const BottomDecoder = struct {
         }
     }
     pub fn decodeByte(byte: []const u8) ?u8 {
-        var res: [40]u8 = std.mem.zeroes([40]u8);
+        var res: [40]u8 = comptime std.mem.zeroes([40]u8);
         var text = "👉👈";
         if (byte.len > 40) return null;
         @memcpy(res[0..], byte.ptr, byte.len); // This is less than 40 always
@@ -71,7 +71,7 @@ test "decoder works" {
 
 test "All bytes possible values are decodable" {
     var byte: u8 = @truncate(u8, 0);
-    var buffer: [40]u8 = std.mem.zeroes([40]u8);
+    var buffer: [40]u8 = comptime std.mem.zeroes([40]u8);
     var encode: []u8 = undefined;
     var result: u8 = undefined;
     for (@as([256]u0, undefined)) |_, index| {
@@ -89,7 +89,7 @@ test "All bytes possible values are decodable" {
 
 test "All bytes decodeable in decode" {
     var byte: u8 = @truncate(u8, 0);
-    var buffer: [40]u8 = std.mem.zeroes([40]u8);
+    var buffer: [40]u8 = comptime std.mem.zeroes([40]u8);
     var encode: []u8 = undefined;
     var result: []u8 = undefined;
     for (@as([256]u0, undefined)) |_, index| {

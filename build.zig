@@ -27,12 +27,12 @@ pub fn build(b: *std.build.Builder) void {
     const pkgs = struct {
         const bottom = std.build.Pkg{
             .name = "bottom",
-            .path = .{ .path = "bottom.zig" },
+            .source = .{ .path = "bottom.zig" },
         };
 
         const args = std.build.Pkg{
             .name = "zig-args",
-            .path = .{ .path = "vendors/zig-args/args.zig" },
+            .source = .{ .path = "vendors/zig-args/args.zig" },
         };
     };
     const packages = getAllPkg(pkgs);
