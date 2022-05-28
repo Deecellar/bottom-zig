@@ -139,6 +139,9 @@
                     setResult: (ptr, len) => {
                         document.getElementById("result").value = readString(ptr, len);
                     },
+                    appendResult: (ptr, len) => {
+                        document.getElementById("result").value += readString(ptr, len);
+                    },
                     getText: () => {
                         // We get the text from the input box 
                         let text = document.getElementById("text").value;
