@@ -58,14 +58,18 @@ pub const BottomDecoder = struct {
     }
 };
 test "decoder works" {
+    try std.testing.checkAllAllocationFailures(std.testing.allocator, decoderWorks, .{});
+}
+
+fn decoderWorks(allocator: std.mem.Allocator) !void {
     if (@import("builtin").os.tag == .windows) {
         if (std.os.windows.kernel32.SetConsoleOutputCP(65001) == 0) {
             return error.console_not_support_utf8;
         }
     }
     const @"😈" = "💖💖,,,,👉👈💖💖,👉👈💖💖🥺,,,👉👈💖💖🥺,,,👉👈💖💖✨,👉👈✨✨✨,,👉👈💖💖✨🥺,,,,👉👈💖💖✨,👉👈💖💖✨,,,,👉👈💖💖🥺,,,👉👈💖💖👉👈✨✨✨,,,👉👈";
-    const res = try BottomDecoder.decodeAlloc(@"😈", std.testing.allocator);
-    defer std.testing.allocator.free(res);
+    const res = try BottomDecoder.decodeAlloc(@"😈", allocator);
+    defer allocator.free(res);
     try std.testing.expectEqualStrings("hello world!", res);
 }
 
@@ -96,7 +100,7 @@ test "All bytes decodeable in decode" {
         byte = @truncate(u8, index);
         encode = bottom.encodeByte(byte, &buffer);
         result = BottomDecoder.decode(encode, &buffer) catch |err| {
-            std.log.err("Error", .{});
+            std.log.err("Error {}", .{err});
             std.log.err("value of byte: {d} unexpected", .{byte});
             std.log.err("value of byte encoded: {s} unexpected", .{encode});
             return err;
@@ -106,17 +110,28 @@ test "All bytes decodeable in decode" {
 }
 
 test "All bytes decodeable in decodeAlloc" {
+    std.testing.checkAllAllocationFailures(std.testing.allocator, allocAllBytesReachable, .{}) catch |err| {
+        if (err == error.NondeterministicMemoryUsage) {
+            return;
+        } else return err;
+    };
+}
+
+fn allocAllBytesReachable(allocator: std.mem.Allocator) !void {
     var byte: u8 = @truncate(u8, 0);
     var buffer: [40]u8 = undefined;
     var encode: []u8 = undefined;
     var result: []u8 = undefined;
-    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    var arena = std.heap.ArenaAllocator.init(allocator);
     defer arena.deinit();
     for (@as([256]u0, undefined)) |_, index| {
         byte = @truncate(u8, index);
         encode = bottom.encodeByte(byte, &buffer);
         result = BottomDecoder.decodeAlloc(encode, arena.allocator()) catch |err| {
-            std.log.err("Error", .{});
+            if (err == error.OutOfMemory) {
+                return; // We don't want to die on out of memory, poor people that did have a problem with this
+            }
+            std.log.err("Error {}", .{err});
             std.log.err("value of byte: {d} unexpected", .{byte});
             std.log.err("value of byte encoded: {s} unexpected", .{encode});
             return err;

@@ -59,13 +59,17 @@ pub const BottomEncoder = struct {
 };
 
 test "encode works" {
+    try std.testing.checkAllAllocationFailures(std.testing.allocator, testEncoder, .{});
+}
+
+fn testEncoder(allocator: std.mem.Allocator) !void {
     if (@import("builtin").os.tag == .windows) {
         if (std.os.windows.kernel32.SetConsoleOutputCP(65001) == 0) {
             return error.console_not_support_utf8;
         }
     }
     const a = "💖💖,,,,👉👈💖💖,👉👈💖💖🥺,,,👉👈💖💖🥺,,,👉👈💖💖✨,👉👈✨✨✨,,👉👈💖💖✨🥺,,,,👉👈💖💖✨,👉👈💖💖✨,,,,👉👈💖💖🥺,,,👉👈💖💖👉👈✨✨✨,,,👉👈";
-    const res = try BottomEncoder.encodeAlloc("hello world!", std.testing.allocator);
-    defer std.testing.allocator.free(res);
+    const res = try BottomEncoder.encodeAlloc("hello world!", allocator);
+    defer allocator.free(res);
     try std.testing.expectEqualStrings(a, res);
 }
