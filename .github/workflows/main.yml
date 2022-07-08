@@ -38,9 +38,10 @@ jobs:
         run: zig build test-lib
 
       - name: Create Wasm Example
+        if: ${{ matrix.os == 'ubuntu-latest' }}
         run: | 
-        mv public public2 -r
-        zig build wasm-shared -p public2 --prefix-lib-dir wasm
+          mv public public2 -r
+          zig build wasm-shared -p public2 --prefix-lib-dir wasm
         
       - name: Minimify Page export
         uses: zugazagoitia/minify-js@v0.4
