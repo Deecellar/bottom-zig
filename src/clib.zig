@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const options = @import("build_options");
 const encode = @import("encoder.zig");
 const decode = @import("decoder.zig");
@@ -15,6 +16,14 @@ const CSlice = extern struct {
 export var bottom_current_error: u8 = 0;
 var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 
+fn bottomInitLib() callconv(.C) void {
+    if (builtin.os.tag == .windows) {
+        if (std.os.windows.kernel32.SetConsoleOutputCP(65001) == 0) {
+            bottom_current_error = 3;
+        }
+    }
+    // If any other consideration can be made, use this function
+}
 
 fn bottomEncodeAlloc(input: [*]u8, len: usize) callconv(.C) CSlice {
     var allocator = blk: {
@@ -91,6 +100,7 @@ const error_no_error_string = "No error";
 const error_not_enough_memory_string = "Not enough memory";
 const error_invalid_input_string = "Invalid input";
 const error_unknown_error_string = "Unknown error";
+const error_windows_utf8 = "This windows terminal can't use UTF-8";
 
 fn getErrorString(error_code: u8) callconv(.C) CSlice {
     if (error_code == 0) {
@@ -102,6 +112,9 @@ fn getErrorString(error_code: u8) callconv(.C) CSlice {
     if (error_code == 2) {
         return CSlice{ .ptr = error_invalid_input_string, .len = error_invalid_input_string.len };
     }
+    if (error_code == 3) {
+        return CSlice{ .ptr = error_windows_utf8, .len = error_windows_utf8.len };
+    }
     return CSlice{ .ptr = error_unknown_error_string, .len = error_unknown_error_string.len };
 }
 
@@ -110,7 +123,7 @@ fn getVersion() callconv(.C) CSlice {
     return CSlice{ .ptr = version.ptr, .len = version.len };
 }
 
-fn freeSlice(slice: CSlice) callconv(.C) void{
+fn freeSlice(slice: CSlice) callconv(.C) void {
     var allocator = blk: {
         if (options.use_c) {
             break :blk std.heap.c_allocator;
@@ -122,6 +135,7 @@ fn freeSlice(slice: CSlice) callconv(.C) void{
 }
 
 comptime {
+    @export(bottomInitLib, .{ .name = "bottom_init_lib", .linkage = .Strong });
     @export(bottomDecodeAlloc, .{ .name = "bottom_decode_alloc", .linkage = .Strong });
     @export(bottomDecodeBuf, .{ .name = "bottom_decode_buf", .linkage = .Strong });
     @export(bottomEncodeAlloc, .{ .name = "bottom_encode_alloc", .linkage = .Strong });

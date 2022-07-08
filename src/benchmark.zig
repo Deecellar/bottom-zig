@@ -5,6 +5,7 @@ const decode = @import("decoder.zig");
 pub fn main() !void {
     var time: std.time.Timer = undefined;
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+
     var string: []u8 = try gpa.allocator().alloc(u8, 1024 * 1024 * 10);
     var string2: []u8 = try gpa.allocator().alloc(u8, 1024 * 1024 * 10);
     var buffer: []u8 = try gpa.allocator().alloc(u8, 1024 * 1024 * 400);
