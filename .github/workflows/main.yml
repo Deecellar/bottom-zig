@@ -38,23 +38,21 @@ jobs:
         run: zig build test-lib
 
       - name: Create Wasm Example
-        run: zig build wasm-shared
-      
-      - name: Prepare Github Page Export
-        if: ${{ matrix.os == 'ubuntu-latest' }}
-        run: rm .gitignore #Hope this make it 
+        run: | 
+        mv public public2 -r
+        zig build wasm-shared -p public2 --prefix-lib-dir wasm
         
       - name: Minimify Page export
         uses: zugazagoitia/minify-js@v0.4
         if: ${{ matrix.os == 'ubuntu-latest' }}
         with:
-          directory: public/index.html # Who puts directory for a file =)
+          directory: public2/index.html # Who puts directory for a file =)
 
       - name: Deploy Github Pages
         if: ${{ matrix.os == 'ubuntu-latest' }}
         uses: rayluo/github-pages-overwriter@v1.2
         with:
-          source-directory: public
+          source-directory: public2
       - name: Build artifacts
         if: ${{ matrix.os == 'ubuntu-latest' }}
         run: |
