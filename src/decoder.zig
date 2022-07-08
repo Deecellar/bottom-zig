@@ -129,7 +129,7 @@ fn allocAllBytesReachable(allocator: std.mem.Allocator) !void {
         encode = bottom.encodeByte(byte, &buffer);
         result = BottomDecoder.decodeAlloc(encode, arena.allocator()) catch |err| {
             if (err == error.OutOfMemory) {
-                return; // We don't want to die on out of memory, poor people that did have a problem with this
+                return err; // We don't want to die on out of memory, poor people that did have a problem with this
             }
             std.log.err("Error {}", .{err});
             std.log.err("value of byte: {d} unexpected", .{byte});
