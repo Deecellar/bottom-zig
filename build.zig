@@ -98,13 +98,11 @@ pub fn build(b: *std.build.Builder) void {
     }
     slib.install(); // Only works in install
 
-    b.installDirectory(std.build.InstallDirectoryOptions {
+    b.installDirectory(std.build.InstallDirectoryOptions{
         .source_dir = "include",
         .install_dir = .header,
         .install_subdir = "bottom",
     });
-
-
 
     install_lib_step.dependOn(&slib.step);
     const install_only_shared = b.addInstallArtifact(slib);
@@ -133,7 +131,9 @@ pub fn build(b: *std.build.Builder) void {
     const clib_exe = b.addExecutable("clib", null);
     clib_exe.linkLibC();
     clib_exe.linkLibrary(lib);
-    clib_exe.addIncludePath("zig-out/include");
+    const include_path = b.pathJoin(&.{ b.install_prefix, "include" });
+    defer b.allocator.free(include_path);
+    clib_exe.addIncludePath(include_path);
     clib_exe.addCSourceFile("src/example.c", &.{});
     clib_exe.setTarget(target);
     clib_exe.setBuildMode(mode);
