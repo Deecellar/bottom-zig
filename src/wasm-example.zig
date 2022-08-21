@@ -19,7 +19,7 @@ export fn _start() void {
 }
 
 export fn decode() void {
-    var temp: []u8 = &@as([1]u8, undefined);
+    var temp: []const u8 = &@as([1]u8, undefined);
     current_state = .regress_failed;
     var len = getTextLen();
     if (len > std.math.maxInt(usize)) {
