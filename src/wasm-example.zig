@@ -19,7 +19,7 @@ export fn _start() void {
 }
 
 export fn decode() void {
-    var temp: []u8 = &@as([1]u8, undefined);
+    var temp: []const u8 = &@as([1]u8, undefined);
     current_state = .regress_failed;
     var len = getTextLen();
     if (len > std.math.maxInt(usize)) {
@@ -145,7 +145,7 @@ pub fn panic(msg: []const u8, stackTrace: ?*std.builtin.StackTrace) noreturn {
     restart(@enumToInt(current_state));
     var stack_trace_print: ?[]u8 = null;
     if (stackTrace != null) {
-        stack_trace_print = std.fmt.allocPrint(globalAllocator, "{s}", .{stackTrace}) catch |err| {
+        stack_trace_print = std.fmt.allocPrint(globalAllocator, "{?}", .{stackTrace}) catch |err| {
             logus("failed on error:", "failed on error:".len);
             logus(@errorName(err).ptr, @errorName(err).len);
             restart(@enumToInt(current_state));
