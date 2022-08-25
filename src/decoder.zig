@@ -19,6 +19,7 @@ pub const BottomDecoder = struct {
     }
 
     pub fn decode(str: []const u8, buffer: []u8) ![]u8 {
+        @setRuntimeSafety(false);
         var iter = std.mem.split(u8, str, "👉👈");
         var index: usize = 0;
         while (iter.next()) |owo| {
@@ -48,6 +49,7 @@ pub const BottomDecoder = struct {
         }
     }
     pub fn decodeByte(byte: []const u8) ?u8 {
+        @setRuntimeSafety(false);
         var res: [40]u8 = comptime std.mem.zeroes([40]u8);
         var text = "👉👈";
         if (byte.len > 40) return null;

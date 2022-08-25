@@ -21,6 +21,7 @@ pub const BottomEncoder = struct {
 
     /// Encode a stream of bytes to a bottomified version, the caller owns memory
     pub fn encode(str: []const u8, memory: []u8) []u8 {
+        @setRuntimeSafety(false);
         var index: usize = 0;
         var buffer: [max_expansion_per_byte]u8 = undefined; // The maximum ammount of bytes per byte is 40
         for (str) |v| {
@@ -32,6 +33,7 @@ pub const BottomEncoder = struct {
     }
     /// Encode one byte to bottom, the caller owns memory
     pub fn encodeByte(byte: u8, buffer: []u8) []u8 {
+        @setRuntimeSafety(false);
         var b: u8 = byte;
         var index: usize = 0;
         var passed: bool = false;
