@@ -1,8 +1,7 @@
 # Bottom-Zig
 
 This in an implementaion of the Bottom Spec in Zig.
-I did not use much of error control nor fine user interface, this could have better things, but oh well
-Completly serious no joke at all not meme program /s
+This is a complete implementation of the Bottom Spec, thus all changes are related to fitting better to the Spec, the implementation breaking on a new zig version, or added tests or bugs fixes.
 # Features
 
 - Encodes the bottom format
@@ -10,15 +9,10 @@ Completly serious no joke at all not meme program /s
 - Has a CLI (Basically bottom-rs implementation options)
 - You can use it in your projects
 
-# Things that does not work
+# Upcomming Developments
 
 - My doc comments and comments
 - Errors are a bit not user friendly
-
-
-# Will I continue
-
-Probably (And I did)
 
 # How to build
 
@@ -37,12 +31,6 @@ If you want a native binary, in the CI, the lastest job called "CI" will have ar
 - Andrew for making an awesome language
 - MasterQ32 for making zig args and being awesome
 - der-teufel-programming for saying I should do this
-- bnuuy
-- #offtopic for being a funny place
-- Dunno?
-- My Top?
-- My Bottom?
-- I am just writing stuff here now
 - =3
 
 # License
