@@ -12,7 +12,7 @@ pub const DecoderError = error{
 pub const BottomDecoder = struct {
     const decodeHash = GetDecodeHash();
     pub fn decodeAlloc(str: []const u8, allocator: std.mem.Allocator) DecoderError![]u8 {
-        var len = @maximum(std.math.divCeil(usize, str.len, bottom.max_expansion_per_byte) catch str.len, 40);
+        var len = @max(std.math.divCeil(usize, str.len, bottom.max_expansion_per_byte) catch str.len, 40);
         var memory = try allocator.alloc(u8, (len - 1) * 2);
         errdefer allocator.free(memory);
         return decode(str, memory);
