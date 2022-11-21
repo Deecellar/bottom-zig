@@ -1,7 +1,7 @@
 const std = @import("std");
 pub fn getAllPkg(comptime T: type) CalculatePkg(T) {
-    const info: std.builtin.TypeInfo = @typeInfo(T);
-    const declarations: []const std.builtin.TypeInfo.Declaration = info.Struct.decls;
+    const info: std.builtin.Type = @typeInfo(T);
+    const declarations: []const std.builtin.Type.Declaration = info.Struct.decls;
     var pkgs: CalculatePkg(T) = undefined;
     var index: usize = 0;
     inline for (declarations) |d| {
@@ -13,8 +13,8 @@ pub fn getAllPkg(comptime T: type) CalculatePkg(T) {
     return pkgs;
 }
 fn CalculatePkg(comptime T: type) type {
-    const info: std.builtin.TypeInfo = @typeInfo(T);
-    const declarations: []const std.builtin.TypeInfo.Declaration = info.Struct.decls;
+    const info: std.builtin.Type = @typeInfo(T);
+    const declarations: []const std.builtin.Type.Declaration = info.Struct.decls;
     var count: usize = 0;
     for (declarations) |d| {
         if (@TypeOf(@field(T, d.name)) == std.build.Pkg) {
