@@ -140,12 +140,12 @@ pub fn log(
     globalAllocator.free(to_print);
 }
 
-pub fn panic(msg: []const u8, stackTrace: ?*std.builtin.StackTrace) noreturn {
+pub fn panic(msg: []const u8, stackTrace: ?*std.builtin.StackTrace, return_address: ?usize) noreturn {
     current_state = .panic;
     restart(@enumToInt(current_state));
     var stack_trace_print: ?[]u8 = null;
     if (stackTrace != null) {
-        stack_trace_print = std.fmt.allocPrint(globalAllocator, "{?}", .{stackTrace}) catch |err| {
+        stack_trace_print = std.fmt.allocPrint(globalAllocator, "{?} {?}", .{stackTrace, return_address}) catch |err| {
             logus("failed on error:", "failed on error:".len);
             logus(@errorName(err).ptr, @errorName(err).len);
             restart(@enumToInt(current_state));
