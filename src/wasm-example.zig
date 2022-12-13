@@ -14,7 +14,7 @@ const RestartState = enum(u32) {
 var current_state: RestartState = .generic_error;
 
 export fn _start() void {
-    globalAllocator = std.heap.page_allocator;
+    globalAllocator = std.heap.wasm_allocator;
     exception = std.ArrayList([]const u8).init(globalAllocator);
 }
 
