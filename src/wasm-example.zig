@@ -113,7 +113,7 @@ extern fn getTextLen() u32;
 extern fn restart(status: u32) void;
 pub extern fn logus(ptr: [*]const u8, len: u32) void;
 pub const std_options = struct {
-pub fn log(
+pub fn logFn(
     comptime message_level: std.log.Level,
     comptime scope: @Type(.EnumLiteral),
     comptime format: []const u8,
@@ -139,6 +139,10 @@ pub fn log(
     globalAllocator.free(message);
     globalAllocator.free(to_print);
 }
+
+
+
+};
 
 pub fn panic(msg: []const u8, stackTrace: ?*std.builtin.StackTrace, return_address: ?usize) noreturn {
     current_state = .panic;
@@ -181,5 +185,3 @@ inline fn trap() noreturn {
         @breakpoint();
     }
 }
-
-};
