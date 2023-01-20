@@ -112,7 +112,7 @@ extern fn getText() [*]const u8;
 extern fn getTextLen() u32;
 extern fn restart(status: u32) void;
 pub extern fn logus(ptr: [*]const u8, len: u32) void;
-
+pub const std_options = struct {
 pub fn log(
     comptime message_level: std.log.Level,
     comptime scope: @Type(.EnumLiteral),
@@ -181,3 +181,5 @@ inline fn trap() noreturn {
         @breakpoint();
     }
 }
+
+};
