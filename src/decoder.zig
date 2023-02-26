@@ -34,7 +34,7 @@ pub const BottomDecoder = struct {
     const ListType = struct { @"0": []const u8, @"1": u8 };
     fn GetDecodeHash() type {
         var list: [256]ListType = undefined;
-        inline for (list) |*v, index| {
+        inline for (&list, 0..) |*v, index| {
             v.* = getByte(index);
         }
         return std.ComptimeStringMap(u8, list);
@@ -80,7 +80,7 @@ test "All bytes possible values are decodable" {
     var buffer: [40]u8 = comptime std.mem.zeroes([40]u8);
     var encode: []u8 = undefined;
     var result: u8 = undefined;
-    for (@as([256]u0, undefined)) |_, index| {
+    for (@as([256]u0, undefined), 0..) |_, index| {
         byte = @truncate(u8, index);
         encode = bottom.encodeByte(byte, &buffer);
         result = BottomDecoder.decodeByte(encode[0 .. encode.len - 8]) orelse {
@@ -98,7 +98,7 @@ test "All bytes decodeable in decode" {
     var buffer: [40]u8 = comptime std.mem.zeroes([40]u8);
     var encode: []u8 = undefined;
     var result: []u8 = undefined;
-    for (@as([256]u0, undefined)) |_, index| {
+    for (@as([256]u0, undefined), 0..) |_, index| {
         byte = @truncate(u8, index);
         encode = bottom.encodeByte(byte, &buffer);
         result = BottomDecoder.decode(encode, &buffer) catch |err| {
@@ -126,7 +126,7 @@ fn allocAllBytesReachable(allocator: std.mem.Allocator) !void {
     var result: []u8 = undefined;
     var arena = std.heap.ArenaAllocator.init(allocator);
     defer arena.deinit();
-    for (@as([256]u0, undefined)) |_, index| {
+    for (@as([256]u0, undefined), 0..) |_, index| {
         byte = @truncate(u8, index);
         encode = bottom.encodeByte(byte, &buffer);
         result = BottomDecoder.decodeAlloc(encode, arena.allocator()) catch |err| {

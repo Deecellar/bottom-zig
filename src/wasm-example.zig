@@ -113,35 +113,32 @@ extern fn getTextLen() u32;
 extern fn restart(status: u32) void;
 pub extern fn logus(ptr: [*]const u8, len: u32) void;
 pub const std_options = struct {
-pub fn logFn(
-    comptime message_level: std.log.Level,
-    comptime scope: @Type(.EnumLiteral),
-    comptime format: []const u8,
-    args: anytype,
-) void {
-    current_state = .generic_error;
-    var message = std.fmt.allocPrint(globalAllocator, format, args) catch |err| {
-        logus("failed on error:", "failed on error:".len);
-        logus(@errorName(err).ptr, @errorName(err).len);
-        restart(@enumToInt(current_state));
+    pub fn logFn(
+        comptime message_level: std.log.Level,
+        comptime scope: @Type(.EnumLiteral),
+        comptime format: []const u8,
+        args: anytype,
+    ) void {
+        current_state = .generic_error;
+        var message = std.fmt.allocPrint(globalAllocator, format, args) catch |err| {
+            logus("failed on error:", "failed on error:".len);
+            logus(@errorName(err).ptr, @errorName(err).len);
+            restart(@enumToInt(current_state));
 
-        return;
-    };
-    var to_print = std.fmt.allocPrint(globalAllocator, "{s}-{s}: {s}", .{ @tagName(scope), message_level.asText(), message }) catch |err| {
-        logus("failed on error:", "failed on error:".len);
-        logus(@errorName(err).ptr, @errorName(err).len);
-        restart(@enumToInt(current_state));
+            return;
+        };
+        var to_print = std.fmt.allocPrint(globalAllocator, "{s}-{s}: {s}", .{ @tagName(scope), message_level.asText(), message }) catch |err| {
+            logus("failed on error:", "failed on error:".len);
+            logus(@errorName(err).ptr, @errorName(err).len);
+            restart(@enumToInt(current_state));
 
-        return;
-    };
-    appendException(to_print.ptr, @truncate(u32, to_print.len));
-    logus(to_print.ptr, @truncate(u32, to_print.len));
-    globalAllocator.free(message);
-    globalAllocator.free(to_print);
-}
-
-
-
+            return;
+        };
+        appendException(to_print.ptr, @truncate(u32, to_print.len));
+        logus(to_print.ptr, @truncate(u32, to_print.len));
+        globalAllocator.free(message);
+        globalAllocator.free(to_print);
+    }
 };
 
 pub fn panic(msg: []const u8, stackTrace: ?*std.builtin.StackTrace, return_address: ?usize) noreturn {
@@ -149,7 +146,7 @@ pub fn panic(msg: []const u8, stackTrace: ?*std.builtin.StackTrace, return_addre
     restart(@enumToInt(current_state));
     var stack_trace_print: ?[]u8 = null;
     if (stackTrace != null) {
-        stack_trace_print = std.fmt.allocPrint(globalAllocator, "{?} {?}", .{stackTrace, return_address}) catch |err| {
+        stack_trace_print = std.fmt.allocPrint(globalAllocator, "{?} {?}", .{ stackTrace, return_address }) catch |err| {
             logus("failed on error:", "failed on error:".len);
             logus(@errorName(err).ptr, @errorName(err).len);
             restart(@enumToInt(current_state));

@@ -3,5 +3,5 @@ pub const decoder = @import("src/decoder.zig").BottomDecoder;
 
 comptime {
     _ = encoder;
-    _ = decoder;    
+    _ = decoder;
 }

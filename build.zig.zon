@@ -1,0 +1,10 @@
+.{
+    .name = "bottom-zig",
+    .version = "0.0.2",
+    .dependencies = .{
+        .args = .{
+            .url = "https://github.com/MasterQ32/zig-args/archive/e0fd4e607a22c80977a75186798f1cb98b7ed698.tar.gz",
+            .hash = "1220b38b261a6bdafa9495e1ea736984e995c4aa57306fc6734551518d5e7e486a0a",
+        },
+    },
+}
