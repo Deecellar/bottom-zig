@@ -1,3 +1,0 @@
-[submodule "vendors/zig-args"]
-	path = vendors/zig-args
-	url = https://github.com/MasterQ32/zig-args
