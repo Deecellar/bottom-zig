@@ -68,6 +68,7 @@ pub fn build(b: *std.build.Builder) void {
     install_lib_step.dependOn(&install_only.step);
     const wasm_shared = b.addSharedLibrary(.{ .name = "bottom-zig", .root_source_file = .{ .path = "src/wasm-example.zig" }, .optimize = .ReleaseSmall, .target = std.zig.CrossTarget{ .abi = .musl, .os_tag = .freestanding, .cpu_arch = .wasm32 } });
     wasm_shared.strip = true;
+    wasm_shared.rdynamic = true;
 
     const wasm_shared_step = b.step("wasm-shared", "Build the WASM example");
     wasm_shared_step.dependOn(&wasm_shared.step);
