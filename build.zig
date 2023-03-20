@@ -53,11 +53,8 @@ pub fn build(b: *std.build.Builder) void {
     }
     slib.install(); // Only works in install
 
-    b.installDirectory(std.build.InstallDirectoryOptions{
-        .source_dir = "include",
-        .install_dir = .header,
-        .install_subdir = "bottom",
-    });
+
+    const header_include = b.addInstallHeaderFile("include/bottom.h", "bottom/bottom.h");
 
     install_lib_step.dependOn(&slib.step);
     const install_only_shared = b.addInstallArtifact(slib);
@@ -90,6 +87,7 @@ pub fn build(b: *std.build.Builder) void {
     clib_exe.install();
 
     clib_exe.step.dependOn(&lib.step);
+    clib_exe.step.dependOn(&header_include.step);
 
     const benchmark_step = b.step("benchmark", "Run benchmarks");
     benchmark_step.dependOn(&exe2.step);
