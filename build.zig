@@ -2,7 +2,7 @@ const std = @import("std");
 
 pub fn build(b: *std.build.Builder) void {
     const args = std.build.dependency(b, "args", .{});
-    _ = b.addModule("bottom-zig",.{
+    _    = b.addModule("bottom-zig",.{
         .source_file = .{ .path = "bottom.zig" },
         .dependencies = &.{},
     });
@@ -79,12 +79,12 @@ pub fn build(b: *std.build.Builder) void {
     exe.addAnonymousModule("bottom", std.build.CreateModuleOptions{ .source_file = .{ .path = "bottom.zig" } });
     exe2.install();
 
+    
+
     const clib_exe = b.addExecutable(std.build.ExecutableOptions{ .name = "clib", .optimize = mode, .target = target });
     clib_exe.linkLibC();
     clib_exe.linkLibrary(lib);
-    const include_path = b.pathJoin(&.{ b.install_prefix, "include" });
-    defer b.allocator.free(include_path);
-    clib_exe.addIncludePath(include_path);
+    clib_exe.addIncludePath(b.h_dir);
     clib_exe.addCSourceFile("src/example.c", &.{});
     clib_exe.install();
 
