@@ -2,7 +2,7 @@ const std = @import("std");
 
 pub fn build(b: *std.build.Builder) void {
     const args = std.build.dependency(b, "args", .{});
-    _    = b.addModule("bottom-zig",.{
+    const module    = b.addModule("bottom-zig",.{
         .source_file = .{ .path = "bottom.zig" },
         .dependencies = &.{},
     });
@@ -18,7 +18,7 @@ pub fn build(b: *std.build.Builder) void {
 
     const exe = b.addExecutable(std.build.ExecutableOptions{ .name = "bottom-zig", .root_source_file = .{ .path = "src/main.zig" }, .optimize = mode, .target = target });
     exe.addModule("zig-args", args.module("args"));
-    exe.addAnonymousModule("bottom", std.build.CreateModuleOptions{ .source_file = .{ .path = "bottom.zig" } });
+    exe.addModule("bottom", module);
     exe.addOptions("build_options", options);
     if (use_c) {
         exe.linkLibC();
@@ -35,7 +35,7 @@ pub fn build(b: *std.build.Builder) void {
     run_step.dependOn(&run_cmd.step);
 
     var exe_tests = b.addTest(std.build.TestOptions{ .name = "bottom-test", .root_source_file = .{ .path = "src/main.zig" }, .optimize = mode, .target = target });
-    exe.addAnonymousModule("bottom", std.build.CreateModuleOptions{ .source_file = .{ .path = "bottom.zig" } });
+    exe.addModule("bottom", module);
     const test_step = b.step("test-exe", "Run unit tests for the CLI App");
     test_step.dependOn(&exe_tests.step);
 
@@ -76,7 +76,7 @@ pub fn build(b: *std.build.Builder) void {
     wasm_shared_step.dependOn(&install_to_public.step);
 
     const exe2 = b.addExecutable(std.build.ExecutableOptions{ .name = "benchmark", .root_source_file = .{ .path = "src/benchmark.zig" }, .optimize = .ReleaseFast, .target = target });
-    exe.addAnonymousModule("bottom", std.build.CreateModuleOptions{ .source_file = .{ .path = "bottom.zig" } });
+    exe.addModule("bottom", module);
     exe2.install();
 
     
