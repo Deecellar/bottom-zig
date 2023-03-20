@@ -2,8 +2,7 @@ const std = @import("std");
 
 pub fn build(b: *std.build.Builder) void {
     const args = std.build.dependency(b, "args", .{});
-    b.addModule(.{
-        .name = "bottom-zig",
+    _ = b.addModule("bottom-zig",.{
         .source_file = .{ .path = "bottom.zig" },
         .dependencies = &.{},
     });
