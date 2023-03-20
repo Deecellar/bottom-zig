@@ -83,7 +83,8 @@ pub fn build(b: *std.build.Builder) void {
 
     const clib_exe = b.addExecutable(std.build.ExecutableOptions{ .name = "clib", .optimize = mode, .target = target });
     clib_exe.linkLibC();
-    clib_exe.linkLibrary(lib);
+    clib_exe.addLibraryPath(b.lib_dir);
+    clib_exe.addLibrary("bottom-zig");
     clib_exe.addIncludePath(b.h_dir);
     clib_exe.addCSourceFile("src/example.c", &.{});
     clib_exe.install();
