@@ -41,16 +41,12 @@ pub fn build(b: *std.build.Builder) void {
 
     const lib = b.addStaticLibrary(.{ .name = "bottom-zig", .root_source_file = .{ .path = "src/clib.zig" }, .optimize = mode, .target = target });
     lib.addOptions("build_options", options);
-    if (use_c) {
         lib.linkLibC();
-    }
     lib.install(); // Only works in install
 
     const slib = b.addSharedLibrary(.{ .name = "bottom-zig", .root_source_file = .{ .path = "src/clib.zig" }, .optimize = mode, .target = target });
     slib.addOptions("build_options", options);
-    if (use_c) {
         slib.linkLibC();
-    }
     slib.install(); // Only works in install
 
 

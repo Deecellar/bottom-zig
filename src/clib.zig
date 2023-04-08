@@ -14,7 +14,6 @@ const CSlice = extern struct {
 /// Error code 1 = not enough memory
 /// Error code 2 = Invalid Input
 export var bottom_current_error: u8 = 0;
-var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 
 fn bottomInitLib() callconv(.C) void {
     if (builtin.os.tag == .windows) {
@@ -26,14 +25,7 @@ fn bottomInitLib() callconv(.C) void {
 }
 
 fn bottomEncodeAlloc(input: [*]u8, len: usize) callconv(.C) CSlice {
-    var allocator = blk: {
-        if (options.use_c) {
-            break :blk std.heap.c_allocator;
-        } else {
-            break :blk gpa.allocator();
-        }
-    };
-
+    var allocator = std.heap.c_allocator;
     var res = encoder.encodeAlloc(input[0..len], allocator) catch |err| {
         if (err == error.OutOfMemory) {
             bottom_current_error = 1;
@@ -57,13 +49,8 @@ fn bottomEncodeBuf(input: [*]u8, len: usize, buf: [*]u8, buf_len: usize) callcon
 }
 
 fn bottomDecodeAlloc(input: [*]u8, len: usize) callconv(.C) CSlice {
-    var allocator = blk: {
-        if (options.use_c) {
-            break :blk std.heap.c_allocator;
-        } else {
-            break :blk gpa.allocator();
-        }
-    };
+    var allocator = std.heap.c_allocator;
+
     var res = decoder.decodeAlloc(input[0..len], allocator) catch |err| {
         if (err == error.OutOfMemory) {
             bottom_current_error = 1;
@@ -124,13 +111,8 @@ fn getVersion() callconv(.C) CSlice {
 }
 
 fn freeSlice(slice: CSlice) callconv(.C) void {
-    var allocator = blk: {
-        if (options.use_c) {
-            break :blk std.heap.c_allocator;
-        } else {
-            break :blk gpa.allocator();
-        }
-    };
+    var allocator = std.heap.c_allocator;
+
     allocator.free(slice.ptr.?[0..slice.len]);
 }
 

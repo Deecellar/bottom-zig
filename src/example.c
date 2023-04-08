@@ -1,5 +1,6 @@
 #include <bottom/bottom.h>
 #include <stdio.h>
+#include <string.h>
 int main()
 {
     // We init the lib so in windows or other platforms
