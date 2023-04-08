@@ -134,7 +134,7 @@ const BottomConsoleApp = struct {
                 err_handler.report(error.windows_unsuported_code_page); // if this fails, stdin and stdout will be broken, on usage of these two, an error will be reported
             }
         }
-        var dummy_file = std.fs.File{ .handle = 0 };
+        var dummy_file = std.fs.getStdOut();
         // we try to open the input file
         var input_file: std.fs.File = undefined;
         if (options.input) |path| {
