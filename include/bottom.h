@@ -24,4 +24,5 @@ BOTTOM_EXTERN_MODE BottomSlice bottom_encode_buf(uint8_t *data, uintptr_t size, 
 BOTTOM_EXTERN_MODE uint8_t bottom_get_error();
 BOTTOM_EXTERN_MODE BottomSlice bottom_get_error_string(uint8_t error);
 BOTTOM_EXTERN_MODE BottomSlice bottom_get_version();
+BOTTOM_EXTERN_MODE void bottom_free_slice(BottomSlice slice);
 #endif
