@@ -23,9 +23,9 @@ pub fn build(b: *std.build.Builder) void {
     if (use_c) {
         exe.linkLibC();
     }
-    exe.install();
+    b.installArtifact(exe);
 
-    const run_cmd = exe.run();
+    const run_cmd = b.addRunArtifact(exe);
     run_cmd.step.dependOn(b.getInstallStep());
     if (b.args) |arg| {
         run_cmd.addArgs(arg);
@@ -42,12 +42,12 @@ pub fn build(b: *std.build.Builder) void {
     const lib = b.addStaticLibrary(.{ .name = "bottom-zig", .root_source_file = .{ .path = "src/clib.zig" }, .optimize = mode, .target = target });
     lib.addOptions("build_options", options);
         lib.linkLibC();
-    lib.install(); // Only works in install
+    b.installArtifact(lib); // Only works in install
 
     const slib = b.addSharedLibrary(.{ .name = "bottom-zig", .root_source_file = .{ .path = "src/clib.zig" }, .optimize = mode, .target = target });
     slib.addOptions("build_options", options);
         slib.linkLibC();
-    slib.install(); // Only works in install
+    b.installArtifact(slib); // Only works in install
 
 
     const header_include = b.addInstallHeaderFile("include/bottom.h", "bottom/bottom.h");
@@ -70,7 +70,7 @@ pub fn build(b: *std.build.Builder) void {
 
     const exe2 = b.addExecutable(std.build.ExecutableOptions{ .name = "benchmark", .root_source_file = .{ .path = "src/benchmark.zig" }, .optimize = .ReleaseFast, .target = target });
     exe.addModule("bottom", module);
-    exe2.install();
+    b.installArtifact(exe2);
 
     
 
@@ -80,7 +80,7 @@ pub fn build(b: *std.build.Builder) void {
     clib_exe.linkSystemLibrary("bottom-zig");
     clib_exe.addIncludePath(b.h_dir);
     clib_exe.addCSourceFile("src/example.c", &.{});
-    clib_exe.install();
+    b.installArtifact(clib_exe);
 
     clib_exe.step.dependOn(&lib.step);
     clib_exe.step.dependOn(&header_include.step);
@@ -88,7 +88,7 @@ pub fn build(b: *std.build.Builder) void {
     const benchmark_step = b.step("benchmark", "Run benchmarks");
     benchmark_step.dependOn(&exe2.step);
 
-    const run_cmd2 = exe2.run();
+    const run_cmd2 = b.addRunArtifact(exe2);
     run_cmd2.step.dependOn(b.getInstallStep());
     if (b.args) |arg| {
         run_cmd2.addArgs(arg);
