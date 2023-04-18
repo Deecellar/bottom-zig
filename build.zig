@@ -83,6 +83,7 @@ pub fn build(b: *std.build.Builder) void {
     b.installArtifact(clib_exe);
 
     clib_exe.step.dependOn(&lib.step);
+    clib_exe.step.dependOn(&slib.step);
     clib_exe.step.dependOn(&header_include.step);
 
     const benchmark_step = b.step("benchmark", "Run benchmarks");
