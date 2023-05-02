@@ -26,7 +26,6 @@ const Options = struct {
     };
 };
 
-
 const BottomZigErrors = error{
     windows_unsuported_code_page,
     failed_args_parsing,
@@ -57,14 +56,14 @@ const BottomErrorHandler = struct {
     pub fn init() BottomErrorHandler {
         return .{
             .errors_to_report = std.atomic.Stack(BottomZigErrors).init(),
-            .node_array = .{std.atomic.Stack(BottomZigErrors).Node{.data = error.exclusive_arguments_provided, .next = null}} ** 1024,
+            .node_array = .{std.atomic.Stack(BottomZigErrors).Node{ .data = error.exclusive_arguments_provided, .next = null }} ** 1024,
             .index = 0,
         };
     }
     pub fn report(self: *BottomErrorHandler, err: BottomZigErrors) void {
         self.node_array[self.index] = std.atomic.Stack(BottomZigErrors).Node{ .data = err, .next = null };
         self.errors_to_report.push(&self.node_array[self.index]);
-        if(@atomicRmw(usize, &self.index, std.builtin.AtomicRmwOp.Add, 1, std.builtin.AtomicOrder.SeqCst) > self.node_array.len) {
+        if (@atomicRmw(usize, &self.index, std.builtin.AtomicRmwOp.Add, 1, std.builtin.AtomicOrder.SeqCst) > self.node_array.len) {
             _ = @atomicRmw(usize, &self.index, std.builtin.AtomicRmwOp.Sub, 1, std.builtin.AtomicOrder.SeqCst);
             // We are trunctating the stack, this is not a problem because we are only reporting errors
         }
@@ -114,7 +113,7 @@ const BottomErrorHandler = struct {
     }
 
     pub fn deinit(self: *BottomErrorHandler) noreturn {
-        if(!self.errors_to_report.isEmpty()) self.handleErrors();
+        if (!self.errors_to_report.isEmpty()) self.handleErrors();
         self.exit();
     }
 };
@@ -150,7 +149,7 @@ const BottomConsoleApp = struct {
         // we try to open the output file
         var output_file: std.fs.File = undefined;
         if (options.output) |path| {
-            output_file = std.fs.cwd().createFile(path, .{}) catch  file_return: {
+            output_file = std.fs.cwd().createFile(path, .{}) catch file_return: {
                 err_handler.report(error.failed_to_open_output_file);
                 break :file_return dummy_file;
             };
@@ -183,16 +182,13 @@ const BottomConsoleApp = struct {
     pub fn run(self: *BottomConsoleApp) void {
         if (self.options.help) {
             self.help();
-        }
-        else if (self.options.bottomify) {
+        } else if (self.options.bottomify) {
             self.bottomify();
         } else if (self.options.regress) {
             self.regress();
-        }
-        else if (self.options.version) {
+        } else if (self.options.version) {
             self.version();
-        }
-        else {
+        } else {
             unreachable;
         }
     }
@@ -289,19 +285,33 @@ const BottomConsoleApp = struct {
         }
         while (temp.len != 0) {
             temp = temp_calculate_block: {
-                var result = bufferInput.reader().readUntilDelimiterOrEof(&buffer, "👈"[4]) catch {
-                    self.err_handler.report(error.failed_to_open_input_file);
-                    return;
-                };
-                if (result) |t| {
-                    break :temp_calculate_block t;
-                } else {
-                    break :temp_calculate_block &@as([0]u8, undefined);
+                // We read until we find 👉👈 , we need to do this manually because readUntilDelimiter is per byte not per slice
+                var textToSplit = "👉👈";
+                var result: [40]u8 = std.mem.zeroes([40]u8);
+                var result_index: usize = 0;
+                while (bufferInput.reader().readByte() catch null) |r| {
+                    result[result_index] = r;
+                    result_index += 1;
+                    // We read 1 byte, we check that the last 8 bytes are not 👉👈, and we add the byte to the result,
+                    // if the last 8 bytes are 👉👈 we break the loop
+                    if (result_index >= 8) {
+                        var is_emoji: bool = true;
+                        inline for (textToSplit, 0..) |c, i| {
+                            if (result[result_index - (textToSplit.len - i)] != c) {
+                                is_emoji = false;
+                                break;
+                            }
+                        }
+                        if (is_emoji) {
+                            break :temp_calculate_block result[0..result_index - textToSplit.len];
+                        }
+                    }
                 }
+                break :temp_calculate_block &@as([0]u8, undefined);
             };
 
             if (temp.len > 0) {
-                var outbuffer: u8 = bottom.decoder.decodeByte(temp[0 .. temp.len - 7]) orelse {
+                var outbuffer: u8 = bottom.decoder.decodeByte(temp) orelse {
                     self.err_handler.report(error.failed_to_decode_byte);
                     return;
                 };
