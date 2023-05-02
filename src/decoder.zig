@@ -53,8 +53,10 @@ pub const BottomDecoder = struct {
         var res: [40]u8 = comptime std.mem.zeroes([40]u8);
         var text = "👉👈";
         if (byte.len > 40) return null;
-        @memcpy(res[0..], byte.ptr, byte.len); // This is less than 40 always
-        @memcpy(res[byte.len..].ptr, text, text.len); // There is always enough space
+        if (byte.len > 40) unreachable;
+
+        @memcpy(res[0 .. byte.len], byte[0 .. byte.len]); // This is less than 40 always
+        @memcpy(res[byte.len .. 40], text); // There is always enough space
         var result = decodeHash.get(&res);
         return result;
     }

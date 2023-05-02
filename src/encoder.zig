@@ -26,7 +26,7 @@ pub const BottomEncoder = struct {
         var buffer: [max_expansion_per_byte]u8 = undefined; // The maximum ammount of bytes per byte is 40
         for (str) |v| {
             var byte = encodeByte(v, &buffer);
-            std.mem.copy(u8, memory[index .. index + byte.len], byte);
+            @memcpy(memory[index .. index + byte.len], byte);
             index += byte.len;
         }
         return memory[0..index];
@@ -39,22 +39,22 @@ pub const BottomEncoder = struct {
         var passed: bool = false;
         if (byte == 0) {
             var text = "❤";
-            std.mem.copy(u8, buffer[index..], text);
+            @memcpy(buffer[index .. index + text.len], text);
             index += text.len;
         }
         while (b != 0) {
             passed = false;
-            inline for (std.meta.fields(ByteEnum)) |f| {
+            inline for (@typeInfo(ByteEnum).Enum.fields) |f| {
                 if (b >= f.value and !passed and b != 0) {
                     b -= f.value;
-                    std.mem.copy(u8, buffer[index .. index + f.name.len], f.name);
+                    @memcpy(buffer[index .. index + f.name.len], f.name[0..]);
                     index += f.name.len;
                     passed = true;
                 }
             }
         }
         var text = "👉👈";
-        std.mem.copy(u8, buffer[index..], text);
+        @memcpy(buffer[index..index+text.len], text);
         index += text.len;
         return buffer[0..index];
     }
