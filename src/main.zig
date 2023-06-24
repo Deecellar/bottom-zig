@@ -303,7 +303,7 @@ const BottomConsoleApp = struct {
                             }
                         }
                         if (is_emoji) {
-                            break :temp_calculate_block result[0..result_index - textToSplit.len];
+                            break :temp_calculate_block result[0 .. result_index - textToSplit.len];
                         }
                     }
                 }

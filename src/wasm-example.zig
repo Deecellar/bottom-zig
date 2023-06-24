@@ -29,13 +29,13 @@ export fn decode() void {
     var text = getText()[0..len];
     var buffer: []u8 = globalAllocator.alloc(u8, encoder.BottomEncoder.max_expansion_per_byte * buffer_size) catch |err| {
         scoped.err("Failed with err: {any}", .{err});
-        restart(@enumToInt(current_state));
+        restart(@intFromEnum(current_state));
         return;
     };
     defer globalAllocator.free(buffer);
     var bufferRegress: []u8 = globalAllocator.alloc(u8, buffer_size) catch |err| {
         scoped.err("Failed with err: {any}", .{err});
-        restart(@enumToInt(current_state));
+        restart(@intFromEnum(current_state));
         return;
     };
     defer globalAllocator.free(bufferRegress);
@@ -45,7 +45,7 @@ export fn decode() void {
     while (temp.len != 0) {
         temp = (bufferInput.reader().readUntilDelimiterOrEof(buffer, "👈"[4]) catch |err| {
             scoped.err("Failed with err: {any}", .{err});
-            restart(@enumToInt(current_state));
+            restart(@intFromEnum(current_state));
             return;
         }) orelse &@as([0]u8, undefined);
         if (temp.len > 0) {
@@ -67,7 +67,7 @@ export fn encode() void {
         var message = std.fmt.allocPrint(globalAllocator, "Failed with err: {any}", .{err}) catch |err2| {
             scoped.err("Failed with err: {any}", .{err});
             scoped.err("Failed with err: {any}", .{err2});
-            restart(@enumToInt(current_state));
+            restart(@intFromEnum(current_state));
             return;
         };
         appendException(message.ptr, @truncate(u32, message.len));
@@ -76,13 +76,13 @@ export fn encode() void {
     var text = getText()[0..len];
     var buffer: []u8 = globalAllocator.alloc(u8, buffer_size) catch |err| {
         scoped.err("Failed with err: {any}", .{err});
-        restart(@enumToInt(current_state));
+        restart(@intFromEnum(current_state));
         return;
     };
     defer globalAllocator.free(buffer);
     var bufferBottom: []u8 = globalAllocator.alloc(u8, encoder.BottomEncoder.max_expansion_per_byte * buffer_size) catch |err| {
         scoped.err("Failed with err: {any}", .{err});
-        restart(@enumToInt(current_state));
+        restart(@intFromEnum(current_state));
         return;
     };
     defer globalAllocator.free(bufferBottom);
@@ -92,7 +92,7 @@ export fn encode() void {
     while (size != 0) {
         size = bufferInput.read(buffer) catch |err| {
             scoped.err("Failed with err: {any}", .{err});
-            restart(@enumToInt(current_state));
+            restart(@intFromEnum(current_state));
             return;
         };
         if (size > 0) {
@@ -123,14 +123,14 @@ pub const std_options = struct {
         var message = std.fmt.allocPrint(globalAllocator, format, args) catch |err| {
             logus("failed on error:", "failed on error:".len);
             logus(@errorName(err).ptr, @errorName(err).len);
-            restart(@enumToInt(current_state));
+            restart(@intFromEnum(current_state));
 
             return;
         };
         var to_print = std.fmt.allocPrint(globalAllocator, "{s}-{s}: {s}", .{ @tagName(scope), message_level.asText(), message }) catch |err| {
             logus("failed on error:", "failed on error:".len);
             logus(@errorName(err).ptr, @errorName(err).len);
-            restart(@enumToInt(current_state));
+            restart(@intFromEnum(current_state));
 
             return;
         };
@@ -143,13 +143,13 @@ pub const std_options = struct {
 
 pub fn panic(msg: []const u8, stackTrace: ?*std.builtin.StackTrace, return_address: ?usize) noreturn {
     current_state = .panic;
-    restart(@enumToInt(current_state));
+    restart(@intFromEnum(current_state));
     var stack_trace_print: ?[]u8 = null;
     if (stackTrace != null) {
         stack_trace_print = std.fmt.allocPrint(globalAllocator, "{?} {?}", .{ stackTrace, return_address }) catch |err| {
             logus("failed on error:", "failed on error:".len);
             logus(@errorName(err).ptr, @errorName(err).len);
-            restart(@enumToInt(current_state));
+            restart(@intFromEnum(current_state));
 
             trap();
         };
@@ -158,14 +158,14 @@ pub fn panic(msg: []const u8, stackTrace: ?*std.builtin.StackTrace, return_addre
     var message = std.fmt.allocPrint(globalAllocator, "{s}", .{msg}) catch |err| {
         logus("failed on error:", "failed on error:".len);
         logus(@errorName(err).ptr, @errorName(err).len);
-        restart(@enumToInt(current_state));
+        restart(@intFromEnum(current_state));
 
         trap();
     };
     var to_print = std.fmt.allocPrint(globalAllocator, "{s}", .{message}) catch |err| {
         logus("failed on error:", "failed on error:".len);
         logus(@errorName(err).ptr, @errorName(err).len);
-        restart(@enumToInt(current_state));
+        restart(@intFromEnum(current_state));
         trap();
     };
     logus(to_print.ptr, @truncate(u32, to_print.len));

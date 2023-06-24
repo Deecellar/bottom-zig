@@ -55,8 +55,8 @@ pub const BottomDecoder = struct {
         if (byte.len > 40) return null;
         if (byte.len > 40) unreachable;
 
-        @memcpy(res[0 .. byte.len], byte[0 .. byte.len]); // This is less than 40 always
-        @memcpy(res[byte.len .. 40], text); // There is always enough space
+        @memcpy(res[0..byte.len], byte[0..byte.len]); // This is less than 40 always
+        @memcpy(res[byte.len..40], text); // There is always enough space
         var result = decodeHash.get(&res);
         return result;
     }

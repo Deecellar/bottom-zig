@@ -2,7 +2,7 @@ const std = @import("std");
 
 pub fn build(b: *std.build.Builder) void {
     const args = std.build.dependency(b, "args", .{});
-    const module    = b.addModule("bottom-zig",.{
+    const module = b.addModule("bottom-zig", .{
         .source_file = .{ .path = "bottom.zig" },
         .dependencies = &.{},
     });
@@ -41,14 +41,13 @@ pub fn build(b: *std.build.Builder) void {
 
     const lib = b.addStaticLibrary(.{ .name = "bottom-zig", .root_source_file = .{ .path = "src/clib.zig" }, .optimize = mode, .target = target });
     lib.addOptions("build_options", options);
-        lib.linkLibC();
+    lib.linkLibC();
     b.installArtifact(lib); // Only works in install
 
     const slib = b.addSharedLibrary(.{ .name = "bottom-zig", .root_source_file = .{ .path = "src/clib.zig" }, .optimize = mode, .target = target });
     slib.addOptions("build_options", options);
-        slib.linkLibC();
+    slib.linkLibC();
     b.installArtifact(slib); // Only works in install
-
 
     const header_include = b.addInstallHeaderFile("include/bottom.h", "bottom/bottom.h");
 
@@ -71,8 +70,6 @@ pub fn build(b: *std.build.Builder) void {
     const exe2 = b.addExecutable(std.build.ExecutableOptions{ .name = "benchmark", .root_source_file = .{ .path = "src/benchmark.zig" }, .optimize = .ReleaseFast, .target = target });
     exe.addModule("bottom", module);
     b.installArtifact(exe2);
-
-    
 
     const clib_exe = b.addExecutable(std.build.ExecutableOptions{ .name = "clib", .optimize = mode, .target = target });
     clib_exe.linkLibC();

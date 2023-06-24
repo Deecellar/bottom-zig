@@ -54,7 +54,7 @@ pub const BottomEncoder = struct {
             }
         }
         var text = "👉👈";
-        @memcpy(buffer[index..index+text.len], text);
+        @memcpy(buffer[index .. index + text.len], text);
         index += text.len;
         return buffer[0..index];
     }
