@@ -53,7 +53,7 @@ export fn decode() void {
                 scoped.err("Failed with err: {any}", .{err});
                 return;
             };
-            appendResult(outbuffer.ptr, @truncate(u32, outbuffer.len));
+            appendResult(outbuffer.ptr, @truncate(outbuffer.len));
         }
     }
     hideException();
@@ -70,7 +70,7 @@ export fn encode() void {
             restart(@intFromEnum(current_state));
             return;
         };
-        appendException(message.ptr, @truncate(u32, message.len));
+        appendException(message.ptr, @truncate(message.len));
         return;
     }
     var text = getText()[0..len];
@@ -97,7 +97,7 @@ export fn encode() void {
         };
         if (size > 0) {
             var outbuffer: []u8 = encoder.BottomEncoder.encode(buffer[0..size], bufferBottom);
-            appendResult(outbuffer.ptr, @truncate(u32, outbuffer.len));
+            appendResult(outbuffer.ptr, @truncate(outbuffer.len));
         }
     }
 
@@ -134,8 +134,8 @@ pub const std_options = struct {
 
             return;
         };
-        appendException(to_print.ptr, @truncate(u32, to_print.len));
-        logus(to_print.ptr, @truncate(u32, to_print.len));
+        appendException(to_print.ptr, @truncate(to_print.len));
+        logus(to_print.ptr, @truncate(to_print.len));
         globalAllocator.free(message);
         globalAllocator.free(to_print);
     }
@@ -168,7 +168,7 @@ pub fn panic(msg: []const u8, stackTrace: ?*std.builtin.StackTrace, return_addre
         restart(@intFromEnum(current_state));
         trap();
     };
-    logus(to_print.ptr, @truncate(u32, to_print.len));
+    logus(to_print.ptr, @truncate(to_print.len));
     globalAllocator.free(message);
     globalAllocator.free(to_print);
     if (stack_trace_print != null) {
