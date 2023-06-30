@@ -46,6 +46,10 @@ const ExitCode = packed struct {
     failed_to_open_output_file: u1 = 0,
     failed_to_flush_into_file: u1 = 0,
     failed_to_decode_byte: u1 = 0,
+
+    pub inline fn toInt(self: ExitCode) u8 {
+        return @bitCast(self);
+    }
 };
 
 const BottomErrorHandler = struct {
@@ -109,7 +113,7 @@ const BottomErrorHandler = struct {
     }
 
     pub fn exit(self: *BottomErrorHandler) noreturn {
-        std.os.exit(@bitCast(u8, self.exit_code));
+        std.os.exit(@bitCast(self.exit_code));
     }
 
     pub fn deinit(self: *BottomErrorHandler) noreturn {
@@ -168,7 +172,7 @@ const BottomConsoleApp = struct {
             err_handler.report(error.obligatory_arguments_not_provided);
         }
         err_handler.handleErrors();
-        if (@bitCast(u8, err_handler.exit_code) != 0) {
+        if (err_handler.exit_code.toInt() != 0) {
             err_handler.exit();
         }
         return .{

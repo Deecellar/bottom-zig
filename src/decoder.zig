@@ -78,12 +78,12 @@ fn decoderWorks(allocator: std.mem.Allocator) !void {
 }
 
 test "All bytes possible values are decodable" {
-    var byte: u8 = @truncate(u8, 0);
+    var byte: u8 = @truncate(0);
     var buffer: [40]u8 = comptime std.mem.zeroes([40]u8);
     var encode: []u8 = undefined;
     var result: u8 = undefined;
     for (@as([256]u0, undefined), 0..) |_, index| {
-        byte = @truncate(u8, index);
+        byte = @as(u8, @truncate(index));
         encode = bottom.encodeByte(byte, &buffer);
         result = BottomDecoder.decodeByte(encode[0 .. encode.len - 8]) orelse {
             std.log.err("Error", .{});
@@ -96,12 +96,12 @@ test "All bytes possible values are decodable" {
 }
 
 test "All bytes decodeable in decode" {
-    var byte: u8 = @truncate(u8, 0);
+    var byte: u8 = @truncate(0);
     var buffer: [40]u8 = comptime std.mem.zeroes([40]u8);
     var encode: []u8 = undefined;
     var result: []u8 = undefined;
     for (@as([256]u0, undefined), 0..) |_, index| {
-        byte = @truncate(u8, index);
+        byte = @as(u8, @truncate(index));
         encode = bottom.encodeByte(byte, &buffer);
         result = BottomDecoder.decode(encode, &buffer) catch |err| {
             std.log.err("Error {}", .{err});
@@ -122,14 +122,14 @@ test "All bytes decodeable in decodeAlloc" {
 }
 
 fn allocAllBytesReachable(allocator: std.mem.Allocator) !void {
-    var byte: u8 = @truncate(u8, 0);
+    var byte: u8 = @truncate(0);
     var buffer: [40]u8 = undefined;
     var encode: []u8 = undefined;
     var result: []u8 = undefined;
     var arena = std.heap.ArenaAllocator.init(allocator);
     defer arena.deinit();
     for (@as([256]u0, undefined), 0..) |_, index| {
-        byte = @truncate(u8, index);
+        byte = @as(u8, @truncate(index));
         encode = bottom.encodeByte(byte, &buffer);
         result = BottomDecoder.decodeAlloc(encode, arena.allocator()) catch |err| {
             if (err == error.OutOfMemory) {
