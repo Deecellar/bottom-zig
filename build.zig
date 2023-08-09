@@ -52,10 +52,10 @@ pub fn build(b: *std.build.Builder) void {
     const header_include = b.addInstallHeaderFile("include/bottom.h", "bottom/bottom.h");
 
     install_lib_step.dependOn(&slib.step);
-    const install_only_shared = b.addInstallArtifact(slib);
+    const install_only_shared = b.addInstallArtifact(slib, .{});
     install_lib_step.dependOn(&install_only_shared.step);
     install_lib_step.dependOn(&lib.step);
-    const install_only = b.addInstallArtifact(lib);
+    const install_only = b.addInstallArtifact(lib, .{});
     install_lib_step.dependOn(&install_only.step);
     const wasm_shared = b.addSharedLibrary(.{ .name = "bottom-zig", .root_source_file = .{ .path = "src/wasm-example.zig" }, .optimize = .ReleaseSmall, .target = std.zig.CrossTarget{ .abi = .musl, .os_tag = .freestanding, .cpu_arch = .wasm32 } });
     wasm_shared.strip = true;
@@ -64,7 +64,7 @@ pub fn build(b: *std.build.Builder) void {
     const wasm_shared_step = b.step("wasm-shared", "Build the WASM example");
     wasm_shared_step.dependOn(&wasm_shared.step);
 
-    const install_to_public = b.addInstallArtifact(wasm_shared);
+    const install_to_public = b.addInstallArtifact(wasm_shared, .{});
     wasm_shared_step.dependOn(&install_to_public.step);
 
     const exe2 = b.addExecutable(std.build.ExecutableOptions{ .name = "benchmark", .root_source_file = .{ .path = "src/benchmark.zig" }, .optimize = .ReleaseFast, .target = target });
@@ -73,10 +73,13 @@ pub fn build(b: *std.build.Builder) void {
 
     const clib_exe = b.addExecutable(std.build.ExecutableOptions{ .name = "clib", .optimize = mode, .target = target });
     clib_exe.linkLibC();
-    clib_exe.addLibraryPath(b.lib_dir);
+    clib_exe.addLibraryPath(.{.path = b.lib_dir});
     clib_exe.linkSystemLibrary("bottom-zig");
-    clib_exe.addIncludePath(b.h_dir);
-    clib_exe.addCSourceFile("src/example.c", &.{});
+    clib_exe.addIncludePath(.{.path = b.h_dir});
+    clib_exe.addCSourceFile(.{
+        .file = .{.path = "src/example.c"},
+        .flags = &.{},
+    });
     b.installArtifact(clib_exe);
 
     clib_exe.step.dependOn(&lib.step);
