@@ -43,7 +43,7 @@ jobs:
         if: ${{ matrix.os == 'ubuntu-latest' }}
         run: | 
           mv public public2 
-          zig build wasm-shared -p public2 --prefix-lib-dir wasm
+          zig build wasm-shared -p public2 --prefix-exe-dir wasm
         
       - name: Minimify Page export
         uses: zugazagoitia/minify-js@v0.4
