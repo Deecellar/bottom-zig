@@ -39,12 +39,12 @@ pub fn build(b: *std.build.Builder) void {
     const test_step = b.step("test-exe", "Run unit tests for the CLI App");
     test_step.dependOn(&exe_tests.step);
 
-    const lib = b.addStaticLibrary(.{ .name = "bottom-zig", .root_source_file = .{ .path = "src/clib.zig" }, .optimize = mode, .target = target });
+    const lib = b.addStaticLibrary(.{ .name = "bottomz", .root_source_file = .{ .path = "src/clib.zig" }, .optimize = mode, .target = target });
     lib.addOptions("build_options", options);
     lib.linkLibC();
     b.installArtifact(lib); // Only works in install
 
-    const slib = b.addSharedLibrary(.{ .name = "bottom-zig", .root_source_file = .{ .path = "src/clib.zig" }, .optimize = mode, .target = target });
+    const slib = b.addSharedLibrary(.{ .name = "bottomz", .root_source_file = .{ .path = "src/clib.zig" }, .optimize = mode, .target = target });
     slib.addOptions("build_options", options);
     slib.linkLibC();
     b.installArtifact(slib); // Only works in install
