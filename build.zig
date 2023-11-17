@@ -76,7 +76,7 @@ pub fn build(b: *std.build.Builder) void {
     const clib_exe = b.addExecutable(std.build.ExecutableOptions{ .name = "clib", .optimize = mode, .target = target });
     clib_exe.linkLibC();
     clib_exe.addLibraryPath(.{.path = b.lib_dir});
-    clib_exe.linkSystemLibrary("bottom-zig");
+    clib_exe.linkSystemLibrary("bottomz");
     clib_exe.addIncludePath(.{.path = b.h_dir});
     clib_exe.addCSourceFile(.{
         .file = .{.path = "src/example.c"},
