@@ -62,6 +62,7 @@ pub fn build(b: *std.build.Builder) void {
     wasm_shared.rdynamic = true;
     wasm_shared.entry = .disabled;
     wasm_shared.import_table = true;
+    wasm_shared.export_table = true;
 
     const wasm_shared_step = b.step("wasm-shared", "Build the WASM example");
     wasm_shared_step.dependOn(&wasm_shared.step);
@@ -79,7 +80,7 @@ pub fn build(b: *std.build.Builder) void {
     clib_exe.linkSystemLibrary("bottomz");
     clib_exe.addIncludePath(.{.path = b.h_dir});
     clib_exe.addCSourceFile(.{
-        .file = .{.path = "src/example.c"},
+        .file = .{ .path = "src/example.c" },
         .flags = &.{},
     });
     b.installArtifact(clib_exe);
