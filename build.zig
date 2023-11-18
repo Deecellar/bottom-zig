@@ -61,7 +61,7 @@ pub fn build(b: *std.build.Builder) void {
     wasm_shared.strip = true;
     wasm_shared.rdynamic = true;
     wasm_shared.entry = .disabled;
-    wasm_shared.import_table = true;
+    //wasm_shared.import_table = true;
     wasm_shared.export_table = true;
 
     const wasm_shared_step = b.step("wasm-shared", "Build the WASM example");
