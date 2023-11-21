@@ -137,7 +137,7 @@ const BottomConsoleApp = struct {
                 err_handler.report(error.windows_unsuported_code_page); // if this fails, stdin and stdout will be broken, on usage of these two, an error will be reported
             }
         }
-        var dummy_file = std.io.getStdOut();
+        const dummy_file = std.io.getStdOut();
         // we try to open the input file
         var input_file: std.fs.File = undefined;
         if (options.input) |path| {
@@ -211,7 +211,7 @@ const BottomConsoleApp = struct {
                 self.err_handler.report(error.failed_to_open_input_file);
                 return;
             };
-            var outbuffer: []u8 = bottom.encoder.encode(stdin_buffer[0 .. stdin_buffer.len - (newline.len - 1)], &bufferBottom);
+            const outbuffer: []u8 = bottom.encoder.encode(stdin_buffer[0 .. stdin_buffer.len - (newline.len - 1)], &bufferBottom);
             _ = bufferOut.writer().writeAll(outbuffer) catch {
                 self.err_handler.report(error.failed_to_flush_into_file);
                 return;
@@ -232,7 +232,7 @@ const BottomConsoleApp = struct {
                 return;
             };
             if (size > 0) {
-                var outbuffer: []u8 = bottom.encoder.encode(buffer[0 .. size - 1], &bufferBottom);
+                const outbuffer: []u8 = bottom.encoder.encode(buffer[0 .. size - 1], &bufferBottom);
                 bufferOut.writer().writeAll(outbuffer) catch {
                     self.err_handler.report(error.failed_to_open_output_file);
                     return;
@@ -269,7 +269,7 @@ const BottomConsoleApp = struct {
                 self.err_handler.report(error.failed_to_open_input_file);
                 return;
             };
-            var outbuffer: []u8 = bottom.decoder.decode(stdin_buffer[0 .. stdin_buffer.len - (newline.len - 1)], bufferRegress[0 .. (buffer.len / bottom.encoder.max_expansion_per_byte - 1) * 2]) catch {
+            const outbuffer: []u8 = bottom.decoder.decode(stdin_buffer[0 .. stdin_buffer.len - (newline.len - 1)], bufferRegress[0 .. (buffer.len / bottom.encoder.max_expansion_per_byte - 1) * 2]) catch {
                 self.err_handler.report(error.failed_to_flush_into_file);
                 return;
             };
@@ -290,7 +290,7 @@ const BottomConsoleApp = struct {
         while (temp.len != 0) {
             temp = temp_calculate_block: {
                 // We read until we find 👉👈 , we need to do this manually because readUntilDelimiter is per byte not per slice
-                var textToSplit = "👉👈";
+                const textToSplit = "👉👈";
                 var result: [40]u8 = std.mem.zeroes([40]u8);
                 var result_index: usize = 0;
                 while (bufferInput.reader().readByte() catch null) |r| {
@@ -315,7 +315,7 @@ const BottomConsoleApp = struct {
             };
 
             if (temp.len > 0) {
-                var outbuffer: u8 = bottom.decoder.decodeByte(temp) orelse {
+                const outbuffer: u8 = bottom.decoder.decodeByte(temp) orelse {
                     self.err_handler.report(error.failed_to_decode_byte);
                     return;
                 };
@@ -336,7 +336,7 @@ const BottomConsoleApp = struct {
 
 pub fn main() noreturn {
     var app = init_blk: {
-        var underlying_allocator = allocator_blk: {
+        const underlying_allocator = allocator_blk: {
             if (build_options.use_c) {
                 break :allocator_blk std.heap.c_allocator;
             } else {
@@ -345,12 +345,12 @@ pub fn main() noreturn {
             }
         };
         var thread_safe_allocator = std.heap.ThreadSafeAllocator{ .child_allocator = underlying_allocator };
-        var allocator = thread_safe_allocator.allocator();
+        const allocator = thread_safe_allocator.allocator();
         var options = args.parseForCurrentProcess(Options, allocator, .print) catch {
             scoped.err("Failed to get memory for options", .{});
             std.os.exit(3);
         };
-        var op = options.options;
+        const op = options.options;
         defer options.deinit();
         break :init_blk BottomConsoleApp.init(op);
     };

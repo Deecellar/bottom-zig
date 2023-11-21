@@ -12,8 +12,8 @@ pub const DecoderError = error{
 pub const BottomDecoder = struct {
     const decodeHash = GetDecodeHash();
     pub fn decodeAlloc(str: []const u8, allocator: std.mem.Allocator) DecoderError![]u8 {
-        var len = @max(std.math.divCeil(usize, str.len, bottom.max_expansion_per_byte) catch str.len, 40);
-        var memory = try allocator.alloc(u8, (len - 1) * 2);
+        const len = @max(std.math.divCeil(usize, str.len, bottom.max_expansion_per_byte) catch str.len, 40);
+        const memory = try allocator.alloc(u8, (len - 1) * 2);
         errdefer allocator.free(memory);
         return decode(str, memory);
     }
@@ -51,13 +51,13 @@ pub const BottomDecoder = struct {
     pub fn decodeByte(byte: []const u8) ?u8 {
         @setRuntimeSafety(false);
         var res: [40]u8 = comptime std.mem.zeroes([40]u8);
-        var text = "👉👈";
+        const text = "👉👈";
         if (byte.len > 40) return null;
         if (byte.len > 40) unreachable;
 
         @memcpy(res[0..byte.len], byte[0..byte.len]); // This is less than 40 always
         @memcpy(res[byte.len..40], text); // There is always enough space
-        var result = decodeHash.get(&res);
+        const result = decodeHash.get(&res);
         return result;
     }
 };
