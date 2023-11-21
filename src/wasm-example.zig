@@ -21,19 +21,19 @@ export fn _start() void {
 export fn decode() void {
     var temp: []const u8 = &@as([1]u8, undefined);
     current_state = .regress_failed;
-    var len = getTextLen();
+    const len = getTextLen();
     if (len > std.math.maxInt(usize)) {
         scoped.err("Input Too Long", .{});
         return;
     }
-    var text = getText()[0..len];
-    var buffer: []u8 = globalAllocator.alloc(u8, encoder.BottomEncoder.max_expansion_per_byte * buffer_size) catch |err| {
+    const text = getText()[0..len];
+    const buffer: []u8 = globalAllocator.alloc(u8, encoder.BottomEncoder.max_expansion_per_byte * buffer_size) catch |err| {
         scoped.err("Failed with err: {any}", .{err});
         restart(@intFromEnum(current_state));
         return;
     };
     defer globalAllocator.free(buffer);
-    var bufferRegress: []u8 = globalAllocator.alloc(u8, buffer_size) catch |err| {
+    const bufferRegress: []u8 = globalAllocator.alloc(u8, buffer_size) catch |err| {
         scoped.err("Failed with err: {any}", .{err});
         restart(@intFromEnum(current_state));
         return;
@@ -49,7 +49,7 @@ export fn decode() void {
             return;
         }) orelse &@as([0]u8, undefined);
         if (temp.len > 0) {
-            var outbuffer: []u8 = decoder.BottomDecoder.decode(temp, bufferRegress) catch |err| {
+            const outbuffer: []u8 = decoder.BottomDecoder.decode(temp, bufferRegress) catch |err| {
                 scoped.err("Failed with err: {any}", .{err});
                 return;
             };
@@ -60,11 +60,11 @@ export fn decode() void {
 }
 export fn encode() void {
     current_state = .bottomify_failed;
-    var len = getTextLen();
+    const len = getTextLen();
     if (len > std.math.maxInt(usize)) {
-        var err = error.input_too_long;
+        const err = error.input_too_long;
 
-        var message = std.fmt.allocPrint(globalAllocator, "Failed with err: {any}", .{err}) catch |err2| {
+        const message = std.fmt.allocPrint(globalAllocator, "Failed with err: {any}", .{err}) catch |err2| {
             scoped.err("Failed with err: {any}", .{err});
             scoped.err("Failed with err: {any}", .{err2});
             restart(@intFromEnum(current_state));
@@ -73,14 +73,14 @@ export fn encode() void {
         appendException(message.ptr, @truncate(message.len));
         return;
     }
-    var text = getText()[0..len];
+    const text = getText()[0..len];
     var buffer: []u8 = globalAllocator.alloc(u8, buffer_size) catch |err| {
         scoped.err("Failed with err: {any}", .{err});
         restart(@intFromEnum(current_state));
         return;
     };
     defer globalAllocator.free(buffer);
-    var bufferBottom: []u8 = globalAllocator.alloc(u8, encoder.BottomEncoder.max_expansion_per_byte * buffer_size) catch |err| {
+    const bufferBottom: []u8 = globalAllocator.alloc(u8, encoder.BottomEncoder.max_expansion_per_byte * buffer_size) catch |err| {
         scoped.err("Failed with err: {any}", .{err});
         restart(@intFromEnum(current_state));
         return;
@@ -96,7 +96,7 @@ export fn encode() void {
             return;
         };
         if (size > 0) {
-            var outbuffer: []u8 = encoder.BottomEncoder.encode(buffer[0..size], bufferBottom);
+            const outbuffer: []u8 = encoder.BottomEncoder.encode(buffer[0..size], bufferBottom);
             appendResult(outbuffer.ptr, @truncate(outbuffer.len));
         }
     }
@@ -120,14 +120,14 @@ pub const std_options = struct {
         args: anytype,
     ) void {
         current_state = .generic_error;
-        var message = std.fmt.allocPrint(globalAllocator, format, args) catch |err| {
+        const message = std.fmt.allocPrint(globalAllocator, format, args) catch |err| {
             logus("failed on error:", "failed on error:".len);
             logus(@errorName(err).ptr, @errorName(err).len);
             restart(@intFromEnum(current_state));
 
             return;
         };
-        var to_print = std.fmt.allocPrint(globalAllocator, "{s}-{s}: {s}", .{ @tagName(scope), message_level.asText(), message }) catch |err| {
+        const to_print = std.fmt.allocPrint(globalAllocator, "{s}-{s}: {s}", .{ @tagName(scope), message_level.asText(), message }) catch |err| {
             logus("failed on error:", "failed on error:".len);
             logus(@errorName(err).ptr, @errorName(err).len);
             restart(@intFromEnum(current_state));
@@ -155,14 +155,14 @@ pub fn panic(msg: []const u8, stackTrace: ?*std.builtin.StackTrace, return_addre
         };
     }
 
-    var message = std.fmt.allocPrint(globalAllocator, "{s}", .{msg}) catch |err| {
+    const message = std.fmt.allocPrint(globalAllocator, "{s}", .{msg}) catch |err| {
         logus("failed on error:", "failed on error:".len);
         logus(@errorName(err).ptr, @errorName(err).len);
         restart(@intFromEnum(current_state));
 
         trap();
     };
-    var to_print = std.fmt.allocPrint(globalAllocator, "{s}", .{message}) catch |err| {
+    const to_print = std.fmt.allocPrint(globalAllocator, "{s}", .{message}) catch |err| {
         logus("failed on error:", "failed on error:".len);
         logus(@errorName(err).ptr, @errorName(err).len);
         restart(@intFromEnum(current_state));
