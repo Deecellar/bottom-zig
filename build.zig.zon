@@ -4,7 +4,7 @@
     .version = "0.0.2",
     .dependencies = .{
         .args = .{
-            .url = "https://github.com/Deecellar/zig-args/archive/3e22d80183c3bc2fa0568973141ecf27ad1bdbbb.tar.gz",
+            .url = "https://github.com/MasterQ32/zig-args/archive/3797c1473b48e445d721d40c8fbbe9a7422095ae.tar.gz",
             .hash = "122012fa395ee8ac94592f3a535ed3899a4485e96ee3d4ec8f82c761bf304b34b870",
         },
     },
