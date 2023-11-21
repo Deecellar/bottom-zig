@@ -25,8 +25,8 @@ fn bottomInitLib() callconv(.C) void {
 }
 
 fn bottomEncodeAlloc(input: [*]u8, len: usize) callconv(.C) CSlice {
-    var allocator = std.heap.c_allocator;
-    var res = encoder.encodeAlloc(input[0..len], allocator) catch |err| {
+    const allocator = std.heap.c_allocator;
+    const res = encoder.encodeAlloc(input[0..len], allocator) catch |err| {
         if (err == error.OutOfMemory) {
             bottom_current_error = 1;
         }
@@ -44,14 +44,14 @@ fn bottomEncodeBuf(input: [*]u8, len: usize, buf: [*]u8, buf_len: usize) callcon
         bottom_current_error = 1;
         return CSlice{ .ptr = null, .len = 0 };
     }
-    var a = encoder.encode(input[0..len], buf[0..buf_len]);
+    const a = encoder.encode(input[0..len], buf[0..buf_len]);
     return CSlice{ .ptr = a.ptr, .len = a.len };
 }
 
 fn bottomDecodeAlloc(input: [*]u8, len: usize) callconv(.C) CSlice {
-    var allocator = std.heap.c_allocator;
+    const allocator = std.heap.c_allocator;
 
-    var res = decoder.decodeAlloc(input[0..len], allocator) catch |err| {
+    const res = decoder.decodeAlloc(input[0..len], allocator) catch |err| {
         if (err == error.OutOfMemory) {
             bottom_current_error = 1;
         } else if (err == error.invalid_input) {
@@ -67,7 +67,7 @@ fn bottomDecodeBuf(input: [*]u8, len: usize, buf: [*]u8, buf_len: usize) callcon
         bottom_current_error = 1;
         return CSlice{ .ptr = null, .len = 0 };
     }
-    var a = decoder.decode(input[0..len], buf[0..buf_len]) catch |err| {
+    const a = decoder.decode(input[0..len], buf[0..buf_len]) catch |err| {
         if (err == error.invalid_input) {
             bottom_current_error = 2;
         }

@@ -25,7 +25,7 @@ pub const BottomEncoder = struct {
         var index: usize = 0;
         var buffer: [max_expansion_per_byte]u8 = undefined; // The maximum ammount of bytes per byte is 40
         for (str) |v| {
-            var byte = encodeByte(v, &buffer);
+            const byte = encodeByte(v, &buffer);
             @memcpy(memory[index .. index + byte.len], byte);
             index += byte.len;
         }
@@ -38,7 +38,7 @@ pub const BottomEncoder = struct {
         var index: usize = 0;
         var passed: bool = false;
         if (byte == 0) {
-            var text = "❤";
+            const text = "❤";
             @memcpy(buffer[index .. index + text.len], text);
             index += text.len;
         }
@@ -53,7 +53,7 @@ pub const BottomEncoder = struct {
                 }
             }
         }
-        var text = "👉👈";
+        const text = "👉👈";
         @memcpy(buffer[index .. index + text.len], text);
         index += text.len;
         return buffer[0..index];
