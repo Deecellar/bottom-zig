@@ -1,7 +1,7 @@
 .{
     .paths = .{"src","build.zig","include","public"},
     .name = "bottom-zig",
-    .version = "0.0.2",
+    .version = "0.0.5",
     .dependencies = .{
         .args = .{
             .url = "https://github.com/MasterQ32/zig-args/archive/3797c1473b48e445d721d40c8fbbe9a7422095ae.tar.gz",

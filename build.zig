@@ -11,7 +11,7 @@ pub fn build(b: *std.build.Builder) void {
 
     var options = b.addOptions();
     options.addOption(bool, "use_c", use_c);
-    options.addOption([]const u8, "version", "v0.0.3");
+    options.addOption([]const u8, "version", "v0.0.5");
     const mode = b.standardOptimizeOption(.{});
     const target = b.standardTargetOptions(.{});
     const install_lib_step = b.step("install-lib", "Install library only");

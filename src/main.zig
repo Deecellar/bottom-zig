@@ -53,20 +53,21 @@ const ExitCode = packed struct {
 };
 
 const BottomErrorHandler = struct {
-    errors_to_report: std.atomic.Stack(BottomZigErrors),
-    node_array: [1024]std.atomic.Stack(BottomZigErrors).Node,
+    errors_to_report: std.DoublyLinkedList(BottomZigErrors),
+    node_array: [1024]std.DoublyLinkedList(BottomZigErrors).Node,
     index: usize,
     exit_code: ExitCode = .{},
     pub fn init() BottomErrorHandler {
         return .{
-            .errors_to_report = std.atomic.Stack(BottomZigErrors).init(),
-            .node_array = .{std.atomic.Stack(BottomZigErrors).Node{ .data = error.exclusive_arguments_provided, .next = null }} ** 1024,
+            .errors_to_report = std.DoublyLinkedList(BottomZigErrors){},
+            .node_array = .{std.DoublyLinkedList(BottomZigErrors).Node{ .data = error.exclusive_arguments_provided, .next = null, .prev = null }} ** 1024,
             .index = 0,
         };
     }
     pub fn report(self: *BottomErrorHandler, err: BottomZigErrors) void {
-        self.node_array[self.index] = std.atomic.Stack(BottomZigErrors).Node{ .data = err, .next = null };
-        self.errors_to_report.push(&self.node_array[self.index]);
+        self.node_array[self.index] = std.DoublyLinkedList(BottomZigErrors).Node{ .data = err, .next = null, .prev = null };
+        if(self.index > 0) self.node_array[self.index].prev = &self.node_array[self.index - 1]; 
+        self.errors_to_report.append(&self.node_array[self.index]);
         if (@atomicRmw(usize, &self.index, std.builtin.AtomicRmwOp.Add, 1, std.builtin.AtomicOrder.SeqCst) > self.node_array.len) {
             _ = @atomicRmw(usize, &self.index, std.builtin.AtomicRmwOp.Sub, 1, std.builtin.AtomicOrder.SeqCst);
             // We are trunctating the stack, this is not a problem because we are only reporting errors
@@ -89,7 +90,7 @@ const BottomErrorHandler = struct {
                     self.exit_code.obligatory_arguments_not_provided = 1;
                 },
                 error.exclusive_arguments_provided => {
-                    scoped.err("You cannot use both bottomify and regress UwU", .{});
+                    scoped.err("Bottomify, Regress and Version are exclusive arguments", .{});
                     self.exit_code.exclusive_arguments_provided = 1;
                 },
                 error.failed_to_open_input_file => {
@@ -117,7 +118,7 @@ const BottomErrorHandler = struct {
     }
 
     pub fn deinit(self: *BottomErrorHandler) noreturn {
-        if (!self.errors_to_report.isEmpty()) self.handleErrors();
+        if (!(self.errors_to_report.len == 0)) self.handleErrors();
         self.exit();
     }
 };
@@ -164,9 +165,9 @@ const BottomConsoleApp = struct {
         }
 
         // Version, bottomify and regress are mutually exclusive
-        if (options.version and (options.bottomify or options.regress)) {
+        if ((options.version and (options.bottomify or options.regress)) or options.bottomify and options.regress) {
             err_handler.report(error.exclusive_arguments_provided);
-        }
+        } 
         // At least one of the options must be provided
         if (!options.help and !options.version and !options.bottomify and !options.regress) {
             err_handler.report(error.obligatory_arguments_not_provided);
