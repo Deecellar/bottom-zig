@@ -113,38 +113,36 @@ extern fn getTextLen() u32;
 extern fn restart(status: u32) void;
 pub extern fn logus(ptr: [*]const u8, len: u32) void;
 pub const std_options = blk: {
-    var default_options = std.options;
-    default_options.logFn = options.logFn;
+    var default_options: std.Options = .{};
+    default_options.logFn = logFn;
     break :blk default_options;
 };
-pub const options: std.Options = struct {
-    pub fn logFn(
-        comptime message_level: std.log.Level,
-        comptime scope: @Type(.EnumLiteral),
-        comptime format: []const u8,
-        args: anytype,
-    ) void {
-        current_state = .generic_error;
-        const message = std.fmt.allocPrint(globalAllocator, format, args) catch |err| {
-            logus("failed on error:", "failed on error:".len);
-            logus(@errorName(err).ptr, @errorName(err).len);
-            restart(@intFromEnum(current_state));
+pub fn logFn(
+    comptime message_level: std.log.Level,
+    comptime scope: @Type(.EnumLiteral),
+    comptime format: []const u8,
+    args: anytype,
+) void {
+    current_state = .generic_error;
+    const message = std.fmt.allocPrint(globalAllocator, format, args) catch |err| {
+        logus("failed on error:", "failed on error:".len);
+        logus(@errorName(err).ptr, @errorName(err).len);
+        restart(@intFromEnum(current_state));
 
-            return;
-        };
-        const to_print = std.fmt.allocPrint(globalAllocator, "{s}-{s}: {s}", .{ @tagName(scope), message_level.asText(), message }) catch |err| {
-            logus("failed on error:", "failed on error:".len);
-            logus(@errorName(err).ptr, @errorName(err).len);
-            restart(@intFromEnum(current_state));
+        return;
+    };
+    const to_print = std.fmt.allocPrint(globalAllocator, "{s}-{s}: {s}", .{ @tagName(scope), message_level.asText(), message }) catch |err| {
+        logus("failed on error:", "failed on error:".len);
+        logus(@errorName(err).ptr, @errorName(err).len);
+        restart(@intFromEnum(current_state));
 
-            return;
-        };
-        appendException(to_print.ptr, @truncate(to_print.len));
-        logus(to_print.ptr, @truncate(to_print.len));
-        globalAllocator.free(message);
-        globalAllocator.free(to_print);
-    }
-};
+        return;
+    };
+    appendException(to_print.ptr, @truncate(to_print.len));
+    logus(to_print.ptr, @truncate(to_print.len));
+    globalAllocator.free(message);
+    globalAllocator.free(to_print);
+}
 
 pub fn panic(msg: []const u8, stackTrace: ?*std.builtin.StackTrace, return_address: ?usize) noreturn {
     current_state = .panic;
