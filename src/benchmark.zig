@@ -9,7 +9,7 @@ pub fn main() !void {
     const string: []u8 = try gpa.allocator().alloc(u8, 1024 * 1024 * 10);
     var string2: []u8 = try gpa.allocator().alloc(u8, 1024 * 1024 * 10);
     var buffer: []u8 = try gpa.allocator().alloc(u8, 1024 * 1024 * 400);
-    var rand = std.rand.DefaultPrng.init(491249);
+    var rand = std.Random.DefaultPrng.init(491249);
     rand.fill(string);
     var accum: u64 = 0;
     time = try std.time.Timer.start();
