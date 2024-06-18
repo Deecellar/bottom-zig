@@ -66,7 +66,7 @@ const BottomErrorHandler = struct {
     }
     pub fn report(self: *BottomErrorHandler, err: BottomZigErrors) void {
         self.node_array[self.index] = std.DoublyLinkedList(BottomZigErrors).Node{ .data = err, .next = null, .prev = null };
-        if(self.index > 0) self.node_array[self.index].prev = &self.node_array[self.index - 1]; 
+        if (self.index > 0) self.node_array[self.index].prev = &self.node_array[self.index - 1];
         self.errors_to_report.append(&self.node_array[self.index]);
         if (@atomicRmw(usize, &self.index, std.builtin.AtomicRmwOp.Add, 1, std.builtin.AtomicOrder.seq_cst) > self.node_array.len) {
             _ = @atomicRmw(usize, &self.index, std.builtin.AtomicRmwOp.Sub, 1, std.builtin.AtomicOrder.seq_cst);
@@ -167,7 +167,7 @@ const BottomConsoleApp = struct {
         // Version, bottomify and regress are mutually exclusive
         if ((options.version and (options.bottomify or options.regress)) or options.bottomify and options.regress) {
             err_handler.report(error.exclusive_arguments_provided);
-        } 
+        }
         // At least one of the options must be provided
         if (!options.help and !options.version and !options.bottomify and !options.regress) {
             err_handler.report(error.obligatory_arguments_not_provided);

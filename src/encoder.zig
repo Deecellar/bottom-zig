@@ -67,7 +67,7 @@ pub const BottomEncoder = struct {
     }
     //const buffers = getBuffers();
 
-    pub fn getBuffers() struct {[256][40]u8, [256]usize} {
+    pub fn getBuffers() struct { [256][40]u8, [256]usize } {
         @setEvalBranchQuota(100000000);
         var runtime_buffers: [256][40]u8 = undefined;
         var buffers_len: [256]usize = undefined;
@@ -76,7 +76,7 @@ pub const BottomEncoder = struct {
             const result = naiveEncodeByte(@intCast(index), &runtime_buffers[index]);
             buffers_len[index] = result.len;
         }
-        return .{runtime_buffers, buffers_len};
+        return .{ runtime_buffers, buffers_len };
     }
 
     pub fn encodeDealloc(allocator: std.mem.Allocator, ptr: []const u8) void {

@@ -112,7 +112,12 @@ extern fn getText() [*]const u8;
 extern fn getTextLen() u32;
 extern fn restart(status: u32) void;
 pub extern fn logus(ptr: [*]const u8, len: u32) void;
-pub const std_options = struct {
+pub const std_options = blk: {
+    var default_options = std.options;
+    default_options.logFn = options.logFn;
+    break :blk default_options;
+};
+pub const options: std.Options = struct {
     pub fn logFn(
         comptime message_level: std.log.Level,
         comptime scope: @Type(.EnumLiteral),

@@ -3,7 +3,7 @@ const std = @import("std");
 pub fn build(b: *std.Build) void {
     const args = std.Build.dependency(b, "args", .{});
     const module = b.addModule("bottom-zig", .{
-        .root_source_file = b.path("bottom.zig" ),
+        .root_source_file = b.path("bottom.zig"),
     });
 
     const use_c: bool = b.option(bool, "use_c", "Add C as the default allocator, much faster but uses libc (defaults to false)") orelse false;
@@ -15,7 +15,7 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const install_lib_step = b.step("install-lib", "Install library only");
 
-    const exe = b.addExecutable(std.Build.ExecutableOptions{ .name = "bottom-zig", .root_source_file = b.path("src/main.zig" ), .optimize = mode, .target = target });
+    const exe = b.addExecutable(std.Build.ExecutableOptions{ .name = "bottom-zig", .root_source_file = b.path("src/main.zig"), .optimize = mode, .target = target });
     exe.root_module.addImport("zig-args", args.module("args"));
     exe.root_module.addImport("bottom", module);
     exe.root_module.addOptions("build_options", options);
@@ -33,17 +33,17 @@ pub fn build(b: *std.Build) void {
     const run_step = b.step("run", "Run the Bottom Encoder/Decoder");
     run_step.dependOn(&run_cmd.step);
 
-    var exe_tests = b.addTest(std.Build.TestOptions{ .name = "bottom-test", .root_source_file = b.path("src/main.zig" ), .optimize = mode, .target = target });
+    var exe_tests = b.addTest(std.Build.TestOptions{ .name = "bottom-test", .root_source_file = b.path("src/main.zig"), .optimize = mode, .target = target });
     exe.root_module.addImport("bottom", module);
     const test_step = b.step("test-exe", "Run unit tests for the CLI App");
     test_step.dependOn(&exe_tests.step);
 
-    const lib = b.addStaticLibrary(.{ .name = "bottomz", .root_source_file = b.path("src/clib.zig" ), .optimize = mode, .target = target });
+    const lib = b.addStaticLibrary(.{ .name = "bottomz", .root_source_file = b.path("src/clib.zig"), .optimize = mode, .target = target });
     lib.root_module.addOptions("build_options", options);
     lib.linkLibC();
     b.installArtifact(lib); // Only works in install
 
-    const slib = b.addSharedLibrary(.{ .name = "bottomz", .root_source_file = b.path("src/clib.zig" ), .optimize = mode, .target = target });
+    const slib = b.addSharedLibrary(.{ .name = "bottomz", .root_source_file = b.path("src/clib.zig"), .optimize = mode, .target = target });
     slib.root_module.addOptions("build_options", options);
     slib.linkLibC();
     b.installArtifact(slib); // Only works in install
@@ -56,7 +56,7 @@ pub fn build(b: *std.Build) void {
     install_lib_step.dependOn(&lib.step);
     const install_only = b.addInstallArtifact(lib, .{});
     install_lib_step.dependOn(&install_only.step);
-    const wasm_shared = b.addExecutable(.{ .name = "bottom-zig", .root_source_file = b.path("src/wasm-example.zig" ), .optimize = .ReleaseSmall, .target = b.resolveTargetQuery(.{ .abi = .musl, .os_tag = .freestanding, .cpu_arch = .wasm32 }) });
+    const wasm_shared = b.addExecutable(.{ .name = "bottom-zig", .root_source_file = b.path("src/wasm-example.zig"), .optimize = .ReleaseSmall, .target = b.resolveTargetQuery(.{ .abi = .musl, .os_tag = .freestanding, .cpu_arch = .wasm32 }) });
     wasm_shared.root_module.strip = true;
     wasm_shared.rdynamic = true;
     wasm_shared.entry = .disabled;
@@ -69,17 +69,17 @@ pub fn build(b: *std.Build) void {
     const install_to_public = b.addInstallArtifact(wasm_shared, .{});
     wasm_shared_step.dependOn(&install_to_public.step);
 
-    const exe2 = b.addExecutable(std.Build.ExecutableOptions{ .name = "benchmark", .root_source_file = b.path("src/benchmark.zig" ), .optimize = .ReleaseFast, .target = target });
+    const exe2 = b.addExecutable(std.Build.ExecutableOptions{ .name = "benchmark", .root_source_file = b.path("src/benchmark.zig"), .optimize = .ReleaseFast, .target = target });
     exe.root_module.addImport("bottom", module);
     b.installArtifact(exe2);
 
     const clib_exe = b.addExecutable(std.Build.ExecutableOptions{ .name = "clib", .optimize = mode, .target = target });
     clib_exe.linkLibC();
-    clib_exe.addLibraryPath(b.path(b.pathJoin(&.{std.fs.path.relative(b.allocator, b.build_root.path.?, b.install_prefix) catch @panic("OOM"), "lib" })));
+    clib_exe.addLibraryPath(b.path(b.pathJoin(&.{ std.fs.path.relative(b.allocator, b.build_root.path.?, b.install_prefix) catch @panic("OOM"), "lib" })));
     clib_exe.linkSystemLibrary("bottomz");
-    clib_exe.addIncludePath(b.path(b.pathJoin(&.{std.fs.path.relative(b.allocator, b.build_root.path.?, b.install_prefix) catch @panic("OOM"), "include" })));
+    clib_exe.addIncludePath(b.path(b.pathJoin(&.{ std.fs.path.relative(b.allocator, b.build_root.path.?, b.install_prefix) catch @panic("OOM"), "include" })));
     clib_exe.addCSourceFile(.{
-        .file = b.path("src/example.c" ),
+        .file = b.path("src/example.c"),
         .flags = &.{},
     });
     b.installArtifact(clib_exe);
@@ -100,7 +100,7 @@ pub fn build(b: *std.Build) void {
     const run_step2 = b.step("run-benchmark", "Run the Bottom Encoder/Decoder benchmark");
     run_step2.dependOn(&run_cmd2.step);
 
-    const test_lib = b.addTest(std.Build.TestOptions{ .name = "bottom-test-lib", .root_source_file = b.path("src/main.zig" ), .optimize = mode, .target = target });
+    const test_lib = b.addTest(std.Build.TestOptions{ .name = "bottom-test-lib", .root_source_file = b.path("src/main.zig"), .optimize = mode, .target = target });
 
     const test_lib_step = b.step("test-lib", "Run unit tests for the Library");
     test_lib_step.dependOn(&test_lib.step);

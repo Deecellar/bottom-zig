@@ -112,8 +112,8 @@ fn getVersion() callconv(.C) CSlice {
 
 fn freeSlice(slice: CSlice) callconv(.C) void {
     const allocator = std.heap.c_allocator;
-    if(slice.ptr) |ptr| {
-    encoder.encodeDealloc(allocator, ptr[0..slice.len]);
+    if (slice.ptr) |ptr| {
+        encoder.encodeDealloc(allocator, ptr[0..slice.len]);
     }
 }
 

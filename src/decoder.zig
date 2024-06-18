@@ -41,7 +41,7 @@ pub const BottomDecoder = struct {
 
         @memcpy(res[0..byte.len], byte[0..byte.len]); // This is less than 40 always
         @memcpy(res[byte.len..40], text); // There is always enough space
-        const result = std.mem.indexOfScalar(u64, &data, std.hash.XxHash64.hash(0, &res)) ;
+        const result = std.mem.indexOfScalar(u64, &data, std.hash.XxHash64.hash(0, &res));
         return @as(u8, @intCast(result orelse return null));
     }
 
