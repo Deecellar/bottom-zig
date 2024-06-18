@@ -1,11 +1,11 @@
 .{
-    .paths = .{"src","build.zig","include","public"},
+    .paths = .{ "src", "build.zig", "include", "public" },
     .name = "bottom-zig",
     .version = "0.0.5",
     .dependencies = .{
         .args = .{
-            .url = "https://github.com/MasterQ32/zig-args/archive/3797c1473b48e445d721d40c8fbbe9a7422095ae.tar.gz",
-            .hash = "122012fa395ee8ac94592f3a535ed3899a4485e96ee3d4ec8f82c761bf304b34b870",
+            .url = "https://github.com/MasterQ32/zig-args/archive/872272205d95bdba33798c94e72c5387a31bc806.tar.gz",
+            .hash = "1220fe6ae56b668cc4a033282b5f227bfbb46a67ede6d84e9f9493fea9de339b5f37",
         },
     },
 }

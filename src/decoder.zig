@@ -10,10 +10,9 @@ pub const DecoderError = error{
 
 /// This struct is just a namespace for the decoder
 pub const BottomDecoder = struct {
-    const decodeHash = GetDecodeHash();
     pub fn decodeAlloc(str: []const u8, allocator: std.mem.Allocator) DecoderError![]u8 {
-        const len = @max(std.math.divCeil(usize, str.len, bottom.max_expansion_per_byte) catch str.len, 40);
-        const memory = try allocator.alloc(u8, (len - 1) * 2);
+        const len = std.mem.count(u8, str, "👉👈");
+        const memory = try allocator.alloc(u8, len);
         errdefer allocator.free(memory);
         return decode(str, memory);
     }
@@ -31,23 +30,8 @@ pub const BottomDecoder = struct {
         }
         return buffer[0..index];
     }
-    const ListType = struct { @"0": []const u8, @"1": u8 };
-    fn GetDecodeHash() type {
-        var list: [256]ListType = undefined;
-        inline for (&list, 0..) |*v, index| {
-            v.* = getByte(index);
-        }
-        return std.ComptimeStringMap(u8, list);
-    }
+    const data = getByteData();
 
-    fn getByte(comptime a: u8) ListType {
-        @setEvalBranchQuota(10000000);
-        comptime {
-            var buffer: [40]u8 = std.mem.zeroes([40]u8);
-            _ = bottom.encodeByte(a, &buffer);
-            return .{ .@"0" = buffer[0..40], .@"1" = a };
-        }
-    }
     pub fn decodeByte(byte: []const u8) ?u8 {
         @setRuntimeSafety(false);
         var res: [40]u8 = comptime std.mem.zeroes([40]u8);
@@ -57,8 +41,29 @@ pub const BottomDecoder = struct {
 
         @memcpy(res[0..byte.len], byte[0..byte.len]); // This is less than 40 always
         @memcpy(res[byte.len..40], text); // There is always enough space
-        const result = decodeHash.get(&res);
-        return result;
+        const result = std.mem.indexOfScalar(u64, &data, std.hash.XxHash64.hash(0, &res)) ;
+        return @as(u8, @intCast(result orelse return null));
+    }
+
+    pub fn getByteData() [256]u64 {
+        @setEvalBranchQuota(100000000);
+        var buffer_data: [256]u64 = undefined;
+        var buffer: [40]u8 = comptime std.mem.zeroes([40]u8);
+        for (0..256) |index| {
+            buffer = comptime std.mem.zeroes([40]u8);
+            _ = bottom.encodeByte(@intCast(index), &buffer);
+            const dat = std.hash.XxHash64.hash(0, &buffer);
+            buffer_data[index] = dat;
+        }
+        for (buffer_data, 0..) |b, index_1| {
+            for (buffer_data, 0..) |c, index_2| {
+                if (index_1 == index_2 or b != c) continue;
+                var buffer_one: [40]u8 = comptime std.mem.zeroes([40]u8);
+                var buffer_two: [40]u8 = comptime std.mem.zeroes([40]u8);
+                @compileError(std.fmt.comptimePrint("Duplicate hash {d} found at {d} and {d}\n {s} hash is equal to {s} hash", .{ b, index_1, index_2, bottom.encodeByte(index_1, &buffer_one), bottom.encodeByte(index_2, &buffer_two) }));
+            }
+        }
+        return buffer_data;
     }
 };
 test "decoder works" {
@@ -82,7 +87,7 @@ test "All bytes possible values are decodable" {
     var buffer: [40]u8 = comptime std.mem.zeroes([40]u8);
     var encode: []u8 = undefined;
     var result: u8 = undefined;
-    for (@as([256]u0, undefined), 0..) |_, index| {
+    for (0..256) |index| {
         byte = @as(u8, @truncate(index));
         encode = bottom.encodeByte(byte, &buffer);
         result = BottomDecoder.decodeByte(encode[0 .. encode.len - 8]) orelse {
@@ -100,7 +105,7 @@ test "All bytes decodeable in decode" {
     var buffer: [40]u8 = comptime std.mem.zeroes([40]u8);
     var encode: []u8 = undefined;
     var result: []u8 = undefined;
-    for (@as([256]u0, undefined), 0..) |_, index| {
+    for (0..256) |index| {
         byte = @as(u8, @truncate(index));
         encode = bottom.encodeByte(byte, &buffer);
         result = BottomDecoder.decode(encode, &buffer) catch |err| {
@@ -128,7 +133,7 @@ fn allocAllBytesReachable(allocator: std.mem.Allocator) !void {
     var result: []u8 = undefined;
     var arena = std.heap.ArenaAllocator.init(allocator);
     defer arena.deinit();
-    for (@as([256]u0, undefined), 0..) |_, index| {
+    for (0..256) |index| {
         byte = @as(u8, @truncate(index));
         encode = bottom.encodeByte(byte, &buffer);
         result = BottomDecoder.decodeAlloc(encode, arena.allocator()) catch |err| {

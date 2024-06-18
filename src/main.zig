@@ -68,8 +68,8 @@ const BottomErrorHandler = struct {
         self.node_array[self.index] = std.DoublyLinkedList(BottomZigErrors).Node{ .data = err, .next = null, .prev = null };
         if(self.index > 0) self.node_array[self.index].prev = &self.node_array[self.index - 1]; 
         self.errors_to_report.append(&self.node_array[self.index]);
-        if (@atomicRmw(usize, &self.index, std.builtin.AtomicRmwOp.Add, 1, std.builtin.AtomicOrder.SeqCst) > self.node_array.len) {
-            _ = @atomicRmw(usize, &self.index, std.builtin.AtomicRmwOp.Sub, 1, std.builtin.AtomicOrder.SeqCst);
+        if (@atomicRmw(usize, &self.index, std.builtin.AtomicRmwOp.Add, 1, std.builtin.AtomicOrder.seq_cst) > self.node_array.len) {
+            _ = @atomicRmw(usize, &self.index, std.builtin.AtomicRmwOp.Sub, 1, std.builtin.AtomicOrder.seq_cst);
             // We are trunctating the stack, this is not a problem because we are only reporting errors
         }
     }
@@ -114,7 +114,7 @@ const BottomErrorHandler = struct {
     }
 
     pub fn exit(self: *BottomErrorHandler) noreturn {
-        std.os.exit(@bitCast(self.exit_code));
+        std.posix.exit(@bitCast(self.exit_code));
     }
 
     pub fn deinit(self: *BottomErrorHandler) noreturn {
@@ -349,7 +349,7 @@ pub fn main() noreturn {
         const allocator = thread_safe_allocator.allocator();
         var options = args.parseForCurrentProcess(Options, allocator, .print) catch {
             scoped.err("Failed to get memory for options", .{});
-            std.os.exit(3);
+            std.posix.exit(3);
         };
         const op = options.options;
         defer options.deinit();

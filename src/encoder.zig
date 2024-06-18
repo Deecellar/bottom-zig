@@ -32,7 +32,7 @@ pub const BottomEncoder = struct {
         return memory[0..index];
     }
     /// Encode one byte to bottom, the caller owns memory
-    pub fn encodeByte(byte: u8, buffer: []u8) []u8 {
+    pub fn naiveEncodeByte(byte: u8, buffer: []u8) []u8 {
         @setRuntimeSafety(false);
         var b: u8 = byte;
         var index: usize = 0;
@@ -58,6 +58,33 @@ pub const BottomEncoder = struct {
         index += text.len;
         return buffer[0..index];
     }
+
+    pub fn encodeByte(byte: u8, buffer: []u8) []u8 {
+        @setRuntimeSafety(false);
+        const buffers, const lengths = comptime getBuffers();
+        @memcpy(buffer[0..lengths[byte]], buffers[byte][0..lengths[byte]]);
+        return buffer[0..lengths[byte]];
+    }
+    //const buffers = getBuffers();
+
+    pub fn getBuffers() struct {[256][40]u8, [256]usize} {
+        @setEvalBranchQuota(100000000);
+        var runtime_buffers: [256][40]u8 = undefined;
+        var buffers_len: [256]usize = undefined;
+        for (0..256) |index| {
+            runtime_buffers[index] = std.mem.zeroes([40]u8);
+            const result = naiveEncodeByte(@intCast(index), &runtime_buffers[index]);
+            buffers_len[index] = result.len;
+        }
+        return .{runtime_buffers, buffers_len};
+    }
+
+    pub fn encodeDealloc(allocator: std.mem.Allocator, ptr: []const u8) void {
+        const len = std.mem.count(u8, ptr, "👉👈") * max_expansion_per_byte;
+        var slice = ptr;
+        slice.len = len;
+        allocator.free(slice);
+    }
 };
 
 test "encode works" {
@@ -72,6 +99,6 @@ fn testEncoder(allocator: std.mem.Allocator) !void {
     }
     const a = "💖💖,,,,👉👈💖💖,👉👈💖💖🥺,,,👉👈💖💖🥺,,,👉👈💖💖✨,👉👈✨✨✨,,👉👈💖💖✨🥺,,,,👉👈💖💖✨,👉👈💖💖✨,,,,👉👈💖💖🥺,,,👉👈💖💖👉👈✨✨✨,,,👉👈";
     const res = try BottomEncoder.encodeAlloc("hello world!", allocator);
-    defer allocator.free(res);
+    defer BottomEncoder.encodeDealloc(allocator, res);
     try std.testing.expectEqualStrings(a, res);
 }
