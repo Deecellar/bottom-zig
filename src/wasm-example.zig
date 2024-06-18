@@ -85,7 +85,7 @@ export fn encode() void {
         restart(@intFromEnum(current_state));
         return;
     };
-    defer globalAllocator.free(bufferBottom);
+    defer encoder.BottomEncoder.encodeDealloc(globalAllocator, bufferBottom);
     setResult("", 0);
     var bufferInput = std.io.fixedBufferStream(text);
     var size: usize = 1;
