@@ -19,7 +19,7 @@ pub const BottomDecoder = struct {
 
     pub fn decode(str: []const u8, buffer: []u8) ![]u8 {
         @setRuntimeSafety(false);
-        var iter = std.mem.split(u8, str, "👉👈");
+        var iter = std.mem.splitSequence(u8, str, "👉👈");
         var index: usize = 0;
         while (iter.next()) |owo| {
             if (owo.len == 0) {
