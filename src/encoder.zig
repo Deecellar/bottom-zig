@@ -44,7 +44,7 @@ pub const BottomEncoder = struct {
         }
         while (b != 0) {
             passed = false;
-            inline for (@typeInfo(ByteEnum).Enum.fields) |f| {
+            inline for (@typeInfo(ByteEnum).@"enum".fields) |f| {
                 if (b >= f.value and !passed and b != 0) {
                     b -= f.value;
                     @memcpy(buffer[index .. index + f.name.len], f.name[0..]);

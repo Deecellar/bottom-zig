@@ -118,13 +118,13 @@ fn freeSlice(slice: CSlice) callconv(.C) void {
 }
 
 comptime {
-    @export(bottomInitLib, .{ .name = "bottom_init_lib", .linkage = .strong });
-    @export(bottomDecodeAlloc, .{ .name = "bottom_decode_alloc", .linkage = .strong });
-    @export(bottomDecodeBuf, .{ .name = "bottom_decode_buf", .linkage = .strong });
-    @export(bottomEncodeAlloc, .{ .name = "bottom_encode_alloc", .linkage = .strong });
-    @export(bottomEncodeBuf, .{ .name = "bottom_encode_buf", .linkage = .strong });
-    @export(getError, .{ .name = "bottom_get_error", .linkage = .strong });
-    @export(getErrorString, .{ .name = "bottom_get_error_string", .linkage = .strong });
-    @export(getVersion, .{ .name = "bottom_get_version", .linkage = .strong });
-    @export(freeSlice, .{ .name = "bottom_free_slice", .linkage = .strong });
+    @export(&bottomInitLib, .{ .name = "bottom_init_lib", .linkage = .strong });
+    @export(&bottomDecodeAlloc, .{ .name = "bottom_decode_alloc", .linkage = .strong });
+    @export(&bottomDecodeBuf, .{ .name = "bottom_decode_buf", .linkage = .strong });
+    @export(&bottomEncodeAlloc, .{ .name = "bottom_encode_alloc", .linkage = .strong });
+    @export(&bottomEncodeBuf, .{ .name = "bottom_encode_buf", .linkage = .strong });
+    @export(&getError, .{ .name = "bottom_get_error", .linkage = .strong });
+    @export(&getErrorString, .{ .name = "bottom_get_error_string", .linkage = .strong });
+    @export(&getVersion, .{ .name = "bottom_get_version", .linkage = .strong });
+    @export(&freeSlice, .{ .name = "bottom_free_slice", .linkage = .strong });
 }
