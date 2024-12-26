@@ -1,23 +1,71 @@
+//! # WebAssembly Bottom Encoding Interface
+//! 
+//! Provides a WebAssembly interface for the bottom-zig encoder/decoder library.
+//! Enables web applications to encode/decode bottom text through JavaScript.
+//!
+//! ## Architecture
+//! - Uses WASM memory allocator
+//! - Handles text encoding/decoding in chunks
+//! - Provides error handling and reporting
+//! - Exposes C-style interface for JavaScript
+//!
+//! ## Usage Example
+//! ```js
+//! // Initialize WASM module
+//! _start();
+//! 
+//! // Encode text
+//! setText("hello");
+//! encode();
+//! getResult(); // Returns bottom encoding
+//! 
+//! // Decode bottom text
+//! setText("🥺👉👈");
+//! decode();
+//! getResult(); // Returns original text
+//! ```
+
 const std = @import("std");
 const encoder = @import("encoder.zig");
 const decoder = @import("decoder.zig");
+
+/// Global allocator for WASM memory management
 var globalAllocator: std.mem.Allocator = undefined;
+
+/// Exception tracking for error handling
 var exception: std.ArrayList([]const u8) = undefined;
+
+/// Logging scope for the WASM module
 const scoped = std.log.scoped(.WasmBottomProgram);
+
+/// Buffer size for text processing (128KB)
 const buffer_size = 128 * 1024;
+
+/// Error states for JavaScript interaction
 const RestartState = enum(u32) {
     bottomify_failed = 1,
-    regress_failed = 2,
+    regress_failed = 2, 
     generic_error = 3,
     panic = 4,
 };
+
+/// Current error state 
 var current_state: RestartState = .generic_error;
 
+/// Initialize the WASM module
+/// Sets up memory allocator and exception handling
 export fn _start() void {
     globalAllocator = std.heap.wasm_allocator;
     exception = std.ArrayList([]const u8).init(globalAllocator);
 }
 
+/// # Bottom Text Decoder
+/// Decodes bottom-encoded text into regular UTF-8
+///
+/// ## Implementation
+/// - Processes input in chunks
+/// - Uses pre-allocated buffers
+/// - Reports errors through RestartState
 export fn decode() void {
     var temp: []const u8 = &@as([1]u8, undefined);
     current_state = .regress_failed;
@@ -58,6 +106,14 @@ export fn decode() void {
     }
     hideException();
 }
+
+/// # Text Encoder 
+/// Encodes regular text into bottom encoding
+///
+/// ## Implementation
+/// - Processes input in chunks
+/// - Uses pre-allocated buffers
+/// - Reports errors through RestartState
 export fn encode() void {
     current_state = .bottomify_failed;
     const len = getTextLen();
@@ -104,6 +160,7 @@ export fn encode() void {
     hideException();
 }
 
+/// External JavaScript interface functions
 extern fn setResult(ptr: [*]const u8, len: u32) void;
 extern fn appendResult(ptr: [*]const u8, len: u32) void;
 extern fn appendException(ptr: [*]const u8, len: u32) void;
@@ -112,11 +169,22 @@ extern fn getText() [*]const u8;
 extern fn getTextLen() u32;
 extern fn restart(status: u32) void;
 pub extern fn logus(ptr: [*]const u8, len: u32) void;
+
+/// Standard options configuration
 pub const std_options = blk: {
     var default_options: std.Options = .{};
     default_options.logFn = logFn;
     break :blk default_options;
 };
+
+/// # Logging Function
+/// Handles error reporting and logging for the WASM module
+///
+/// ## Parameters
+/// - `message_level`: Log severity level
+/// - `scope`: Logging scope
+/// - `format`: Message format string
+/// - `args`: Format arguments
 pub fn logFn(
     comptime message_level: std.log.Level,
     comptime scope: @Type(.enum_literal),
@@ -144,6 +212,13 @@ pub fn logFn(
     globalAllocator.free(to_print);
 }
 
+/// # Panic Handler
+/// Manages unrecoverable errors in the WASM module
+///
+/// ## Parameters
+/// - `msg`: Error message
+/// - `stackTrace`: Optional stack trace
+/// - `return_address`: Optional return address
 pub fn panic(msg: []const u8, stackTrace: ?*std.builtin.StackTrace, return_address: ?usize) noreturn {
     current_state = .panic;
     restart(@intFromEnum(current_state));
@@ -180,6 +255,7 @@ pub fn panic(msg: []const u8, stackTrace: ?*std.builtin.StackTrace, return_addre
     trap();
 }
 
+/// Traps execution in debug mode
 inline fn trap() noreturn {
     while (true) {
         @breakpoint();

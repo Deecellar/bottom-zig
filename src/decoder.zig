@@ -1,15 +1,35 @@
+//! # Bottom Text Decoder Module
+//!
+//! Provides functionality to decode bottom-encoded text back into regular UTF-8.
+//! 
+//! ## Implementation Details
+//! The decoder uses a hash table lookup system to efficiently map encoded sequences
+//! back to their original byte values.
+
 const std = @import("std");
 const bottom = @import("encoder.zig").BottomEncoder;
 const ByteEnum = @import("encoder.zig").ByteEnum;
-const mem = @import("zig-native-vector");
-const help_text = @embedFile("help.txt");
 
+/// ## Error Types
+/// Represents possible errors during decoding:
+/// - `invalid_input`: Input string contains invalid bottom encoding
+/// - Any allocation errors from `std.mem.Allocator`
 pub const DecoderError = error{
     invalid_input,
 } || std.mem.Allocator.Error;
 
-/// This struct is just a namespace for the decoder
+/// # Bottom Decoder
+/// Main decoder namespace containing all decoding functionality
 pub const BottomDecoder = struct {
+    /// ## Decode with Allocation
+    /// Decodes a bottom-encoded string, allocating memory for the result
+    /// 
+    /// ### Parameters
+    /// - `str`: The bottom-encoded input string
+    /// - `allocator`: Memory allocator to use for the result
+    /// 
+    /// ### Returns
+    /// Allocated slice containing decoded bytes
     pub fn decodeAlloc(str: []const u8, allocator: std.mem.Allocator) DecoderError![]u8 {
         const len = std.mem.count(u8, str, "👉👈");
         const memory = try allocator.alloc(u8, len);
@@ -17,6 +37,15 @@ pub const BottomDecoder = struct {
         return decode(str, memory);
     }
 
+    /// ## Decode to Buffer
+    /// Decodes a bottom-encoded string into a provided buffer
+    /// 
+    /// ### Parameters
+    /// - `str`: The bottom-encoded input string 
+    /// - `buffer`: Pre-allocated buffer to store the result
+    /// 
+    /// ### Returns
+    /// Slice of the buffer containing decoded bytes
     pub fn decode(str: []const u8, buffer: []u8) ![]u8 {
         @setRuntimeSafety(false);
         var iter = std.mem.splitSequence(u8, str, "👉👈");
@@ -30,8 +59,19 @@ pub const BottomDecoder = struct {
         }
         return buffer[0..index];
     }
+
+    /// ## Lookup Table
+    /// Pre-computed lookup table for byte decoding
     const data = getByteData();
 
+    /// ## Decode Single Byte
+    /// Decodes a single bottom-encoded byte sequence
+    /// 
+    /// ### Parameters
+    /// - `byte`: Bottom-encoded sequence representing a single byte
+    /// 
+    /// ### Returns
+    /// Decoded byte value, or null if invalid
     pub fn decodeByte(byte: []const u8) ?u8 {
         @setRuntimeSafety(false);
         var res: [40]u8 = comptime std.mem.zeroes([40]u8);
@@ -45,6 +85,15 @@ pub const BottomDecoder = struct {
         return @as(u8, @intCast(result orelse return null));
     }
 
+    /// ## Hash Table Generator
+    /// Generates lookup table for byte decoding at comptime
+    /// 
+    /// ### Implementation Details
+    /// - Creates a table of 256 pre-computed hashes
+    /// - Validates there are no hash collisions
+    /// 
+    /// ### Returns
+    /// Array of 256 pre-computed hashes
     pub fn getByteData() [256]u64 {
         @setEvalBranchQuota(100000000);
         var buffer_data: [256]u64 = undefined;
@@ -66,6 +115,13 @@ pub const BottomDecoder = struct {
         return buffer_data;
     }
 };
+
+// Test functions verify:
+// 1. Basic decoding functionality
+// 2. All possible byte values can be decoded
+// 3. Allocation behavior
+// 4. Edge cases and error handling
+
 test "decoder works" {
     try std.testing.checkAllAllocationFailures(std.testing.allocator, decoderWorks, .{});
 }
