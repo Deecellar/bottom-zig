@@ -1,38 +1,86 @@
 # Bottom-Zig
 
-This in an implementaion of the Bottom Spec in Zig.
-This is a complete implementation of the Bottom Spec, thus all changes are related to fitting better to the Spec, the implementation breaking on a new zig version, or added tests or bugs fixes.
+A complete implementation of the Bottom Spec in Zig with both encoding and decoding capabilities.
+
 # Features
 
-- Encodes the bottom format
-- Decodes the bottom format
-- Has a CLI (Basically bottom-rs implementation options)
-- You can use it in your projects
+- Bottom format encoding/decoding
+- CLI interface compatible with bottom-rs options
+- Static and shared library support
+- WebAssembly build target
+- C API bindings
+- Configurable allocators when targeting zig
 
-# Upcomming Developments
+# Upcoming Features
 
-- My doc comments and comments
-- Errors are a bit not user friendly
+- Speed improvements
 
-# How to build
+# Build Options
 
-To build you need to clone with `git clone https://github.com/Deecellar/bottom-zig --recurse` to get all the source files and dependencies
-after the fact you can use `zig build` and it should work.
+```bash
+# Basic build
+zig build
 
-Note that you can use to tune performance -Drelease-safe (To get errors with more detail) -Drelease-fast (Fast performance) and -Drelease-small (Small binary)
-You can also use it as a lib using zig referencing bottom.zig in your code =) 
+# Build with C API with main
+zig build -Duse_c=true  
+# or
+zig build run -Duse_c=true -- [bottom zig options]
 
-# Releases
-I will not do semver to do a release per se not a specifc thing here, so here you go, the closest to that is this =P
-https://deecellar.github.io/bottom-zig/ - Wasm usage on bottom-zig
-If you want a native binary, in the CI, the lastest job called "CI" will have artifacts for linux, mac and windows (x86_64)
+# Run tests
+zig build test-exe    # CLI tests
+zig build test-lib    # Library tests 
+
+# Install library only
+zig build install-lib
+
+# Build WebAssembly
+zig build wasm-shared
+
+# Build benchmarks
+zig build benchmark
+# Run benchmarks
+zig build run-benchmark 
+
+
+```
+
+# Usage
+
+As a dependency in your `build.zig.zon` via zig fetch. use the standard way of adding a module to your project.
+
+# Bottom CLI Usage
+
+```bash
+# Encode
+bottom-zig 
+--bottomify "Hello World"     # 🫂💖✨✨,,👉👈💖✨✨🫂👉👈💖✨✨,👉👈💖✨,,👉👈💖✨✨✨,👉👈💖✨✨✨,,👉👈💖✨,,👉👈💖✨✨✨,👉👈💖✨✨✨,,👉👈✨✨,👉👈💖✨✨✨👉👈💖✨✨✨,👉👈💖✨✨✨,,👉👈💖✨,,👉👈💖✨✨✨👉👈
+
+# Decode
+bottom-zig --regress "🫂💖✨✨,,👉👈💖✨✨🫂👉👈💖✨✨,👉👈💖✨,,👉👈💖✨✨✨,👉👈💖✨✨✨,,👉👈💖✨,,👉👈💖✨✨✨,👉👈💖✨✨✨,,👉👈✨✨,👉👈💖✨✨✨👉👈💖✨✨✨,👉👈💖✨✨✨,,👉👈💖✨,,👉👈💖✨✨✨👉👈"    # Hello World
+
+# Use with files
+bottom-zig --bottomify -i input.txt -o output.txt
+bottom-zig --regress -i output.txt
+```
+
+# C API Usage
+
+See `include/bottom.h` for the API definition. 
+
+For an example of how to use the C API, see `src/example.c`.
+
+
+# Online Demo
+Try it in WebAssembly: https://deecellar.github.io/bottom-zig/
+
+# Binaries
+Pre-built binaries for Linux, macOS and Windows (x86_64) are available in CI artifacts.
+
+# License
+MIT License
+
 # Thanks to
-
 - Andrew for making an awesome language
 - MasterQ32 for making zig args and being awesome
 - der-teufel-programming for saying I should do this
 - =3
-
-# License
-
-All this project is MIT baby.
