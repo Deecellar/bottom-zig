@@ -1,24 +1,54 @@
+//! # Bottom-zig
+//! A Zig implementation of the Bottom encoding specification
+//!
+//! This program provides encoding and decoding capabilities for the Bottom text format,
+//! which converts regular text into a series of bottom-speak emojis.
+//!
+//! ## Usage
+//! ```
+//! bottom-zig -b "text"  # Encode text to bottom
+//! bottom-zig -r "🥺👉👈"  # Decode bottom to text
+//! ```
+
 const std = @import("std");
 const bottom = @import("bottom");
 const args = @import("zig-args");
 const builtin = @import("builtin");
 const build_options = @import("build_options");
 const help_text = @embedFile("help.txt");
+
+/// Maximum buffer size for reading/writing operations (128KB)
 const bufferSize = 128 * 1024;
+
+/// Platform-specific newline character
 const newline = if (builtin.os.tag == .windows) "\r\n" else "\n";
+
 const scoped = std.log.scoped(.BottomCliProgram);
 
-/// We create options similar to bottom RS
+/// Command line options for the program
+/// Provides configuration for encoding/decoding operations
 const Options = struct {
+    /// Convert text to bottom encoding
     bottomify: bool = false,
+    
+    /// Display help information
     help: bool = false,
+    
+    /// Convert bottom encoding back to text
     regress: bool = false,
+    
+    /// Display version information  
     version: bool = false,
+    
+    /// Input file path (optional)
     input: ?[]const u8 = null,
+    
+    /// Output file path (optional) 
     output: ?[]const u8 = null,
+
     pub const shorthands = .{
         .b = "bottomify",
-        .h = "help",
+        .h = "help", 
         .r = "regress",
         .V = "version",
         .i = "input",
@@ -26,14 +56,30 @@ const Options = struct {
     };
 };
 
+/// Program-specific error types
 const BottomZigErrors = error{
+    /// Windows console does not support UTF-8 encoding
     windows_unsuported_code_page,
+    
+    /// Failed to parse command line arguments
     failed_args_parsing,
+    
+    /// Neither bottomify nor regress was specified
     obligatory_arguments_not_provided,
+    
+    /// Multiple exclusive operations specified
     exclusive_arguments_provided,
+    
+    /// Could not open the specified input file
     failed_to_open_input_file,
+    
+    /// Could not open/create the specified output file  
     failed_to_open_output_file,
+    
+    /// Failed to write data to output file
     failed_to_flush_into_file,
+    
+    /// Invalid bottom encoding detected
     failed_to_decode_byte,
 };
 
@@ -78,35 +124,35 @@ const BottomErrorHandler = struct {
         while (self.errors_to_report.pop()) |node| {
             switch (node.data) {
                 error.windows_unsuported_code_page => {
-                    scoped.err("Your windows console does not support UTF-8, try using Windows Terminal at: {s}", .{"https://apps.microsoft.com/store/detail/windows-terminal/9N0DX20HK701?hl=en-us&gl=US"});
+                    scoped.err("UTF-8 encoding not supported by your Windows console.\nPlease install Windows Terminal: https://aka.ms/terminal\nOr enable UTF-8 support in your current console.", .{});
                     self.exit_code.windows_unsuported_code_page = 1;
                 },
                 error.failed_args_parsing => {
-                    scoped.err("Failed to parse arguments, please check your arguments and try again", .{});
+                    scoped.err("Invalid command line arguments.\nUsage: bottom-zig (-b|--bottomify) <text> or (-r|--regress) <bottom-text>\nUse -h or --help for detailed instructions.", .{});
                     self.exit_code.failed_args_parsing = 1;
                 },
                 error.obligatory_arguments_not_provided => {
-                    scoped.err("You have to specify either bottomify or regress OwO", .{});
+                    scoped.err("Missing required operation flag >_<\nPlease specify either:\n  -b/--bottomify to encode text\n  -r/--regress to decode bottom encoding", .{});
                     self.exit_code.obligatory_arguments_not_provided = 1;
                 },
                 error.exclusive_arguments_provided => {
-                    scoped.err("Bottomify, Regress and Version are exclusive arguments", .{});
+                    scoped.err("Multiple exclusive operations specified!\nUse only one of:\n  --bottomify (-b)\n  --regress (-r)\n  --version (-V)", .{});
                     self.exit_code.exclusive_arguments_provided = 1;
                 },
                 error.failed_to_open_input_file => {
-                    scoped.err("Failed to open input file, please check your arguments, check you have read access or if your disk is not corrupt", .{});
+                    scoped.err("Cannot open input file!\nPlease check:\n- File exists\n- You have read permissions\n- Path is correct\n- Disk is not corrupted", .{});
                     self.exit_code.failed_to_open_input_file = 1;
                 },
                 error.failed_to_open_output_file => {
-                    scoped.err("Failed to open output file, please check your arguments, check you have write access or if your disk is not corrupt or full", .{});
+                    scoped.err("Cannot create/open output file!\nPlease check:\n- You have write permissions\n- Directory exists\n- Disk has enough space\n- Path is valid", .{});
                     self.exit_code.failed_to_open_output_file = 1;
                 },
                 error.failed_to_flush_into_file => {
-                    scoped.err("Failed to flush into output file, please check you have write access, your file is not corrupt, your disk is not full", .{});
+                    scoped.err("Failed to write to output file!\nPossible causes:\n- Insufficient disk space\n- Lost write permissions\n- Disk error occurred\n- File system is read-only", .{});
                     self.exit_code.failed_to_flush_into_file = 1;
                 },
                 error.failed_to_decode_byte => {
-                    scoped.err("Failed to decode byte, please provide a valid bottom file", .{});
+                    scoped.err("Invalid bottom encoding detected!\nPlease ensure the input is valid bottom-encoded text\nExample valid format: 🥺👉👈", .{});
                     self.exit_code.failed_to_decode_byte = 1;
                 },
             }
@@ -123,12 +169,18 @@ const BottomErrorHandler = struct {
     }
 };
 
+/// Handles program operations and file I/O
+/// Manages the lifecycle of encoding/decoding operations
 const BottomConsoleApp = struct {
     err_handler: BottomErrorHandler,
     options: Options,
     input_file: std.fs.File,
     output_file: std.fs.File,
 
+    /// Initialize the console application
+    /// Params:
+    ///   options: Parsed command line options
+    /// Returns: Configured BottomConsoleApp instance
     pub fn init(options: Options) BottomConsoleApp {
         var can_use_stdin_stdout: bool = true;
         var err_handler = BottomErrorHandler.init();
@@ -184,6 +236,7 @@ const BottomConsoleApp = struct {
         };
     }
 
+    /// Execute the requested operation based on provided options
     pub fn run(self: *BottomConsoleApp) void {
         if (self.options.help) {
             self.help();
@@ -198,6 +251,8 @@ const BottomConsoleApp = struct {
         }
     }
 
+    /// Convert input text to bottom encoding
+    /// Reads from input_file and writes encoded result to output_file
     pub fn bottomify(self: *BottomConsoleApp) void {
         var bufferInput: std.io.BufferedReader(bufferSize, std.fs.File.Reader) = .{ .unbuffered_reader = self.input_file.reader() };
         var bufferOut: std.io.BufferedWriter(bufferSize * bottom.encoder.max_expansion_per_byte, std.fs.File.Writer) = .{ .unbuffered_writer = self.output_file.writer() };
@@ -244,18 +299,22 @@ const BottomConsoleApp = struct {
         }
     }
 
+    /// Display help information
     pub fn help(self: *BottomConsoleApp) void {
         std.io.getStdOut().writer().writeAll(help_text) catch {
             self.err_handler.report(error.failed_to_flush_into_file);
         };
     }
 
+    /// Display version information
     pub fn version(self: *BottomConsoleApp) void {
         std.io.getStdOut().writer().writeAll(build_options.version) catch {
             self.err_handler.report(error.failed_to_flush_into_file);
         };
     }
 
+    /// Convert bottom encoding back to text
+    /// Reads from input_file and writes decoded result to output_file
     pub fn regress(self: *BottomConsoleApp) void {
         var bufferInput: std.io.BufferedReader(bufferSize, std.fs.File.Reader) = .{ .unbuffered_reader = self.input_file.reader() };
         var bufferOut: std.io.BufferedWriter(bufferSize * bottom.encoder.max_expansion_per_byte, std.fs.File.Writer) = .{ .unbuffered_writer = self.output_file.writer() };
@@ -330,6 +389,7 @@ const BottomConsoleApp = struct {
         }
     }
 
+    /// Clean up resources and exit
     pub fn deinit(self: *BottomConsoleApp) noreturn {
         self.err_handler.deinit();
     }
