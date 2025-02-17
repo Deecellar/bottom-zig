@@ -71,7 +71,7 @@ jobs:
           wait
           for target in "${targets[@]}"; do
             cd artifacts/${target}/
-            tar cfJ ${target}.tar.xz *.md bin/* LICENSE
+            tar cfJ ${target}.tar.xz *.md bin/* LICENSE include/* lib/*
             mv ${target}.tar.xz ../
             cd ../..
           done
