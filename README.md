@@ -21,14 +21,9 @@ A complete implementation of the Bottom Spec in Zig with both encoding and decod
 # Basic build
 zig build
 
-# Build with C API with main
-zig build -Duse_c=true  
-# or
-zig build run -Duse_c=true -- [bottom zig options]
-
 # Run tests
 zig build test-exe    # CLI tests
-zig build test-lib    # Library tests 
+zig build test-lib    # Library tests
 
 # Install library only
 zig build install-lib
@@ -39,7 +34,7 @@ zig build wasm-shared
 # Build benchmarks
 zig build benchmark
 # Run benchmarks
-zig build run-benchmark 
+zig build run-benchmark
 
 
 ```
@@ -52,7 +47,7 @@ As a dependency in your `build.zig.zon` via zig fetch. use the standard way of a
 
 ```bash
 # Encode
-bottom-zig 
+bottom-zig
 --bottomify "Hello World"     # 🫂💖✨✨,,👉👈💖✨✨🫂👉👈💖✨✨,👉👈💖✨,,👉👈💖✨✨✨,👉👈💖✨✨✨,,👉👈💖✨,,👉👈💖✨✨✨,👉👈💖✨✨✨,,👉👈✨✨,👉👈💖✨✨✨👉👈💖✨✨✨,👉👈💖✨✨✨,,👉👈💖✨,,👉👈💖✨✨✨👉👈
 
 # Decode
@@ -65,7 +60,7 @@ bottom-zig --regress -i output.txt
 
 # C API Usage
 
-See `include/bottom.h` for the API definition. 
+See `include/bottom.h` for the API definition.
 
 For an example of how to use the C API, see `src/example.c`.
 
