@@ -109,9 +109,7 @@ const Benchmark = struct {
 };
 
 pub fn main() !void {
-    var gpa = std.heap.DebugAllocator(.{}){};
-    defer _ = gpa.deinit();
-    const allocator = gpa.allocator();
+    const allocator = std.heap.smp_allocator;
 
     const config = BenchConfig{};
     var benchmark = Benchmark.init(allocator, config);
