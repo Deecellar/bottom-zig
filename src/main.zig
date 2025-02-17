@@ -11,10 +11,12 @@
 //! ```
 
 const std = @import("std");
-const bottom = @import("bottom");
-const args = @import("zig-args");
 const builtin = @import("builtin");
 const build_options = @import("build_options");
+
+const args = @import("zig-args");
+const bottom = @import("bottom");
+
 const help_text = @embedFile("help.txt");
 
 /// Maximum buffer size for reading/writing operations (128KB)
@@ -30,25 +32,25 @@ const scoped = std.log.scoped(.BottomCliProgram);
 const Options = struct {
     /// Convert text to bottom encoding
     bottomify: bool = false,
-    
+
     /// Display help information
     help: bool = false,
-    
+
     /// Convert bottom encoding back to text
     regress: bool = false,
-    
-    /// Display version information  
+
+    /// Display version information
     version: bool = false,
-    
+
     /// Input file path (optional)
     input: ?[]const u8 = null,
-    
-    /// Output file path (optional) 
+
+    /// Output file path (optional)
     output: ?[]const u8 = null,
 
     pub const shorthands = .{
         .b = "bottomify",
-        .h = "help", 
+        .h = "help",
         .r = "regress",
         .V = "version",
         .i = "input",
@@ -60,25 +62,25 @@ const Options = struct {
 const BottomZigErrors = error{
     /// Windows console does not support UTF-8 encoding
     windows_unsuported_code_page,
-    
+
     /// Failed to parse command line arguments
     failed_args_parsing,
-    
+
     /// Neither bottomify nor regress was specified
     obligatory_arguments_not_provided,
-    
+
     /// Multiple exclusive operations specified
     exclusive_arguments_provided,
-    
+
     /// Could not open the specified input file
     failed_to_open_input_file,
-    
-    /// Could not open/create the specified output file  
+
+    /// Could not open/create the specified output file
     failed_to_open_output_file,
-    
+
     /// Failed to write data to output file
     failed_to_flush_into_file,
-    
+
     /// Invalid bottom encoding detected
     failed_to_decode_byte,
 };
@@ -398,10 +400,10 @@ const BottomConsoleApp = struct {
 pub fn main() noreturn {
     var app = init_blk: {
         const underlying_allocator = allocator_blk: {
-            if (build_options.use_c) {
-                break :allocator_blk std.heap.c_allocator;
+            if (builtin.mode != .Debug) {
+                break :allocator_blk std.heap.smp_allocator;
             } else {
-                var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+                var gpa = std.heap.DebugAllocator(.{}){};
                 break :allocator_blk gpa.allocator();
             }
         };

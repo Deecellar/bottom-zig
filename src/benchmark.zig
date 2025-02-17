@@ -1,6 +1,7 @@
 const std = @import("std");
-const encode = @import("encoder.zig");
+
 const decode = @import("decoder.zig");
+const encode = @import("encoder.zig");
 
 const BenchConfig = struct {
     iterations: usize = 10,
@@ -48,15 +49,19 @@ const Benchmark = struct {
         var times = std.ArrayList(u64).init(self.allocator);
         defer times.deinit();
 
+        // Arena for warmup runs
+        var arena = std.heap.ArenaAllocator.init(self.allocator);
+
         // Warmup runs
         for (0..self.config.warmup_runs) |_| {
             if (op == .Encode) {
-                _ = try encode.BottomEncoder.encodeAlloc(data, self.allocator);
+                _ = try encode.BottomEncoder.encodeAlloc(data, arena.allocator());
             } else {
-                _ = try decode.BottomDecoder.decodeAlloc(data, self.allocator);
+                _ = try decode.BottomDecoder.decodeAlloc(data, arena.allocator());
             }
         }
-        var decoded_data : []const u8 = undefined;
+        arena.deinit();
+        var decoded_data: []const u8 = undefined;
         // Actual benchmark runs
         for (0..self.config.iterations) |_| {
             const buffer = try self.allocator.alloc(u8, data.len * if (op == .Encode) encode.BottomEncoder.max_expansion_per_byte else 1);
@@ -82,8 +87,6 @@ const Benchmark = struct {
             sum += t;
         }
 
-        
-
         const output_size = if (op == .Encode)
             data.len * encode.BottomEncoder.max_expansion_per_byte
         else
@@ -106,9 +109,7 @@ const Benchmark = struct {
 };
 
 pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
-    const allocator = gpa.allocator();
+    const allocator = std.heap.smp_allocator;
 
     const config = BenchConfig{};
     var benchmark = Benchmark.init(allocator, config);
@@ -133,7 +134,7 @@ pub fn main() !void {
         try stdout.print(" throughput={d:.2}MB/s\n", .{encode_result.throughput_mbs});
 
         const encoded = try encode.BottomEncoder.encodeAlloc(data, allocator);
-        defer allocator.free(encoded);
+        defer encode.BottomEncoder.encodeDealloc(allocator, encoded);
 
         const decode_result = try benchmark.runSingleBench(encoded, .Decode);
         try stdout.print("Decode: min=", .{});
