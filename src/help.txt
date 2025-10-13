@@ -1,17 +1,38 @@
-A CLI for translating between bottom and human-readable text UwU
+bottom-zig - Encoder/decoder for Bottom emoji text encoding UwU
 
-USAGE:
-    bottom-zig [OPTIONS] <--bottomify|--regress> [text]...
+USAGE
+    bottom-zig --bottomify [OPTIONS]
+    bottom-zig --regress [OPTIONS]
+    bottom-zig --help | --version
 
-FLAGS:
-    -b, --bottomify    Translate text to bottom
-    -h, --help         Prints help information
-    -r, --regress      Translate bottom to human-readable text (futile)
-    -V, --version      Prints version information
+DESCRIPTION
+    Encodes UTF-8 text to Bottom emoji encoding or decodes Bottom back to text.
+    Operates on stdin/stdout by default, or on files specified with -i/-o.
 
-OPTIONS:
-    -i, --input <INPUT>      Input file [Default: stdin]
-    -o, --output <OUTPUT>    Output file [Default: stdout]
+REQUIRED FLAGS
+    -b, --bottomify        Encode text to Bottom format
+    -r, --regress          Decode Bottom format to text
 
-ARGS:
-    <text>...
+OPTIONS
+    -i, --input <FILE>     Read from FILE instead of stdin
+    -o, --output <FILE>    Write to FILE instead of stdout
+    -h, --help             Show this help message
+    -V, --version          Show version information
+
+EXAMPLES
+    Encode text from stdin:
+        echo "hello" | bottom-zig --bottomify
+
+    Decode from file:
+        bottom-zig --regress -i encoded.txt
+
+    Round-trip encoding:
+        echo "test" | bottom-zig -b | bottom-zig -r
+
+EXIT STATUS
+    0    Success
+    1-8  Error (see stderr for details)
+
+NOTES
+    On Windows, UTF-8 console support is required (Windows Terminal recommended).
+    Large files are streamed with 128KB buffers to manage memory efficiently.

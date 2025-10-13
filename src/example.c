@@ -1,56 +1,90 @@
+/*
+ * Bottom Encoding C API Example
+ *
+ * This tutorial demonstrates:
+ * 1. Library initialization (required on Windows for UTF-8 console support)
+ * 2. Basic encoding/decoding with automatic memory allocation
+ * 3. Error handling patterns
+ * 4. Memory management (when to free, when not to)
+ */
+
 #include <bottom/bottom.h>
 #include <stdio.h>
 #include <string.h>
+
 int main()
 {
-    // We init the lib so in windows or other platforms
-    // With special consideations for terminal can start
-    // on Utf-8 (for now windows only)
+    // Step 1: Initialize the library
+    // On Windows, this sets the console to UTF-8 mode. On other platforms, it's a no-op.
+    // IMPORTANT: Always call this before any other Bottom API functions.
     bottom_init_lib();
     uint8_t err = 0;
 
-    if (err = bottom_get_error() == 3)
+    // Check if initialization failed (Windows-specific error)
+    if ((err = bottom_get_error()) == 3)
     {
         printf("Error: %d\n", err);
         printf("%s\n", bottom_get_error_string(err));
+        // Note: On Windows without UTF-8 support, you'll need Windows Terminal
     }
+
+    // Step 2: Basic encoding and decoding
     char *str = "Hello, world!";
     BottomSlice slice, slice2, version;
-    slice = bottom_encode_alloc(str, strlen(str));
-    slice2 = bottom_decode_alloc(slice.data, slice.size);
-    printf("%s\n", str);
-    printf("%.*s\n", slice.size, slice.data);
-    printf("%.*s\n", slice2.size, slice2.data);
-    // Version does not need to be freed.
-    version = bottom_get_version();
-    printf("%.*s\n", version.size, version.data);
 
+    // Encode text to Bottom format (allocates memory internally)
+    slice = bottom_encode_alloc((uint8_t*)str, strlen(str));
+
+    // Decode Bottom back to text (allocates memory internally)
+    slice2 = bottom_decode_alloc((uint8_t*)slice.data, slice.size);
+
+    // Print results
+    printf("Original:  %s\n", str);
+    printf("Encoded:   %.*s\n", (int)slice.size, slice.data);
+    printf("Decoded:   %.*s\n", (int)slice2.size, slice2.data);
+
+    // Step 3: Query library version
+    // Version string is static - DO NOT free this slice
+    version = bottom_get_version();
+    printf("Version:   %.*s\n", (int)version.size, version.data);
+
+    // Step 4: Free allocated memory
+    // IMPORTANT: Only free slices returned by *_alloc functions
     bottom_free_slice(slice);
     bottom_free_slice(slice2);
 
-    // error handling
+    // Step 5: Error handling demonstration
     err = 0;
 
-    slice2 = bottom_decode_alloc(str, strlen(str));
-    // This will cause an error.
+    // Try to decode plain text (not valid Bottom encoding) - this will fail
+    slice2 = bottom_decode_alloc((uint8_t*)str, strlen(str));
+
+    // Two ways to detect errors:
+    // 1. Check for zero size in returned slice
     if (slice2.size == 0)
     {
-        err = bottom_get_error(); // This will return the current error which is invalid input
-        printf("Error: %d\n", err);
-        printf("%s\n", bottom_get_error_string(err));
+        err = bottom_get_error();  // Error code 2 = invalid Bottom encoding
+        printf("\nExpected error (invalid input):\n");
+        printf("Error code: %d\n", err);
+        printf("Error message: %s\n", bottom_get_error_string(err));
     }
 
-    slice = bottom_decode_alloc(str, strlen(str));
+    // 2. Check for NULL pointer in returned slice (same error, different check)
+    slice = bottom_decode_alloc((uint8_t*)str, strlen(str));
     if (slice.data == NULL)
     {
-        err = bottom_get_error(); // This will return the current error. which will be invalid input.
-        printf("Error: %d\n", err);
-        printf("%s\n", bottom_get_error_string(err));
+        err = bottom_get_error();  // Same error code 2
+        printf("\nSame error detected via NULL check:\n");
+        printf("Error code: %d\n", err);
+        printf("Error message: %s\n", bottom_get_error_string(err));
     }
-    // if we do it again it will return no error.
+
+    // Important: bottom_get_error() automatically resets the error state
+    // Calling it again returns 0 (no error)
     err = bottom_get_error();
-    printf("Error: %d\n", err);
-    printf("%s\n", bottom_get_error_string(err));
+    printf("\nError state after reset:\n");
+    printf("Error code: %d\n", err);
+    printf("Error message: %s\n", bottom_get_error_string(err));
 
     return 0;
 }

@@ -1,3 +1,13 @@
+//! # Bottom Encoding/Decoding Lookup Tables
+//!
+//! Provides compile-time generated lookup tables for Bottom emoji encoding:
+//! - BottomLut: Encodes bytes 0-255 to Bottom emoji sequences
+//! - BottomDecodeLut: Decodes Bottom sequences back to bytes using hash table
+//!
+//! The Bottom encoding represents bytes as combinations of emoji:
+//! 🫂=200, 💖=50, ✨=10, 🥺=5, ,,,,=4, ,,,=3, ,,=2, ,=1, ❤=0
+//! Each sequence ends with delimiter 👉👈
+
 const std = @import("std");
 
 pub const BottomLut = struct {
@@ -8,12 +18,13 @@ pub const BottomLut = struct {
         return buffers[b][0..lengths[b]];
     }
 
+    /// Generate encoding lookup table at compile time.
+    /// Uses greedy algorithm to represent each byte as emoji combination.
     pub fn generateLut() struct { [256][40]u8, [256]usize } {
         @setEvalBranchQuota(100_000_000);
         var bufs: [256][40]u8 = undefined;
         var lens: [256]usize = undefined;
 
-        // Naive and greedy encoder once at comptime
         const tokens = .{
             .{ "🫂", 200 }, .{ "💖", 50 }, .{ "✨", 10 }, .{ "🥺", 5 },
             .{ ",,,,", 4 },   .{ ",,,", 3 },   .{ ",,", 2 },   .{ ",", 1 },
@@ -55,45 +66,47 @@ pub const BottomDecodeLut = struct {
     pub const delimiter = "👉👈";
 
     const Entry = struct { key: u64, value: u8 };
-    // Power-of-two size for cheap masking; LF ~ 0.5, 256 items -> 512 buckets
+    // 512-entry hash table for 256 codes. Load factor ~0.5 for fast lookups.
     const table_size = 512;
     const mask = table_size - 1;
     const table = buildTable();
 
-    /// Decodes a single bottom-encoded byte sequence (without the trailing 👉👈).
-    /// O(1) expected time using open addressing.
+    /// Decode a Bottom sequence (without delimiter) to its original byte.
+    /// Returns null if sequence is invalid or not in the encoding table.
+    /// Uses XxHash64 + open addressing for O(1) expected lookup time.
     pub inline fn decode(sequence: []const u8) ?u8 {
         @setRuntimeSafety(false);
-        // Hard cap; prevents pathological inputs from wasting time
+        // Reject sequences that exceed maximum encoded length.
         if (sequence.len + delimiter.len > 40) return null;
 
-        // Stream the hash over two slices: sequence then delimiter (no copying).
+        // Hash the sequence + delimiter to match encoding format.
         var hasher = std.hash.XxHash64.init(0);
         hasher.update(sequence);
         hasher.update(delimiter);
         const key = hasher.final();
 
+        // Linear probing until match or empty slot.
         var i: usize = @intCast(key & mask);
         while (true) : (i = (i + 1) & mask) {
             const e = table[i];
-            if (e.key == 0) return null; // miss
-            if (e.key == key) return e.value; // hit
+            if (e.key == 0) return null;
+            if (e.key == key) return e.value;
         }
     }
 
+    /// Build the decode hash table at compile time.
+    /// Inserts all 256 encoded sequences with linear probing collision resolution.
     fn buildTable() [table_size]Entry {
         @setEvalBranchQuota(100_000_000);
         var t: [table_size]Entry = [_]Entry{.{ .key = 0, .value = 0 }} ** table_size;
 
-        // Insert all 256 codes
         inline for (0..256) |i| {
             const enc = BottomLut.lut(@intCast(i));
             var hasher = std.hash.XxHash64.init(0);
             hasher.update(enc);
-            // enc already includes the delimiter by construction
             const key = hasher.final();
 
-            // Linear-probe insert; guaranteed to terminate (LF=0.5)
+            // Linear probe to find empty slot. Guaranteed to succeed with LF=0.5.
             var idx: usize = @intCast(key & mask);
             while (true) : (idx = (idx + 1) & mask) {
                 if (t[idx].key == 0) {
@@ -103,13 +116,13 @@ pub const BottomDecodeLut = struct {
             }
         }
 
-        // Validate unique placement at comptime (paranoid check)
+        // Compile-time validation: ensure all 256 codes were inserted.
         var count: usize = 0;
         for (t) |e| {
             if (e.key != 0) count += 1;
         }
         if (count != 256) {
-            @compileError(std.fmt.comptimePrint("Decode hash table construction failed: got {d} entries", .{count}));
+            @compileError(std.fmt.comptimePrint("Hash table build failed: {d}/256 entries", .{count}));
         }
         return t;
     }
@@ -120,7 +133,6 @@ test "encode and decode round trip" {
         const byte: u8 = @intCast(i);
         const encoded = BottomLut.lut(byte);
 
-        // Remove the trailing 👉👈
         const delimiter = "👉👈";
         const sequence = if (std.mem.endsWith(u8, encoded, delimiter))
             encoded[0 .. encoded.len - delimiter.len]
@@ -137,13 +149,13 @@ test "decode invalid sequences" {
     try std.testing.expectEqual(@as(?u8, null), BottomDecodeLut.decode("invalid"));
     try std.testing.expectEqual(@as(?u8, null), BottomDecodeLut.decode(""));
 
-    // Sequence too long
     const too_long = "💖💖💖💖💖💖💖💖💖💖💖💖💖💖💖💖💖💖💖💖💖";
     try std.testing.expectEqual(@as(?u8, null), BottomDecodeLut.decode(too_long));
 }
 
-/// Mostly based on this article: https://aarol.dev/posts/zig-simd-substr/
-
+/// SIMD-accelerated substring search.
+/// Based on: https://aarol.dev/posts/zig-simd-substr/
+/// Uses two-character heuristic to filter candidates before full comparison.
 pub fn indexOf(haystack: []const u8, needle: []const u8) ?usize {
     const n = haystack.len;
     const k = needle.len;
@@ -176,7 +188,7 @@ pub fn indexOf(haystack: []const u8, needle: []const u8) ?usize {
             _ = mask.toggleFirstSet();
         }
     }
-    // Fallback to scalar search for the tail
+    // Scalar fallback for remaining bytes that don't fill a SIMD block
     if (i < n) {
         if (std.mem.indexOf(u8, haystack[i..], needle)) |rel_idx| {
             return i + rel_idx;
@@ -185,6 +197,8 @@ pub fn indexOf(haystack: []const u8, needle: []const u8) ?usize {
     return null;
 }
 
+/// Find two rarest characters in needle for SIMD search heuristic.
+/// Returns indices of two least-common bytes based on RANK frequency table.
 fn findRarest(needle: []const u8) ?[2]usize {
     if (needle.len <= 1 or needle.len > 256) {
         return null;
@@ -214,9 +228,8 @@ fn findRarest(needle: []const u8) ?[2]usize {
     return [2]usize{ index1, index2 };
 }
 
-// Precalculated background frequency distribution
-// Smaller = less common
-// Author: BurntSushi
+// Byte frequency ranking for English text (lower = rarer).
+// Source: BurntSushi's memchr
 // https://github.com/BurntSushi/memchr/blob/master/src/arch/all/packedpair/default_rank.rs
 const RANK = [256]u8{
     55, // '\x00'

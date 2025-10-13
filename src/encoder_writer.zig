@@ -1,10 +1,30 @@
+//! # Bottom Encoder - Streaming writer for encoding to Bottom emoji format
+//!
+//! Provides a std.Io.Writer-compatible interface for encoding text to Bottom
+//! emoji encoding. Implements efficient buffering with direct encoding for
+//! oversized writes.
+
 const std = @import("std");
 const common = @import("common.zig");
 
+/// Streaming encoder for Bottom emoji encoding.
+///
+/// Implements std.Io.Writer interface to encode raw bytes to Bottom emoji
+/// format. Uses a two-phase drain strategy for optimal performance:
+/// - Small writes are buffered and batch-encoded during flush()
+/// - Large writes (exceeding buffer capacity) bypass buffering and encode directly
+///
+/// This approach minimizes memory copies while maintaining high throughput.
 pub const BottomWriter = struct {
     writer: std.Io.Writer,
     sink: *std.Io.Writer,
 
+    /// Initialize a Bottom encoder.
+    ///
+    /// buffer: Internal buffer for raw bytes before encoding (can be zero-sized for unbuffered mode)
+    /// sink: The underlying writer receiving encoded Bottom data
+    ///
+    /// Returns a BottomWriter that implements std.Io.Writer interface.
     pub fn init(buffer: []u8, sink: *std.Io.Writer) BottomWriter {
         return .{
             .writer = .{
@@ -21,8 +41,11 @@ pub const BottomWriter = struct {
         .flush = flush,
     };
 
-    // flush() is the workhorse. It is responsible for encoding
-    // all raw data currently in the buffer and writing it to the sink.
+    /// flush() encodes all buffered raw data and writes it to the sink.
+    ///
+    /// This is called either explicitly by the user (e.g., before closing a file)
+    /// or implicitly by drain() when making space for new data. Encoding happens
+    /// byte-by-byte using the Bottom lookup table.
     fn flush(interface: *std.Io.Writer) !void {
         const self: *BottomWriter = @alignCast(@fieldParentPtr("writer", interface));
         const buffered_raw_data = interface.buffered();
@@ -39,27 +62,37 @@ pub const BottomWriter = struct {
         interface.end = 0;
     }
 
-    // drain()'s only job is to make space. It does this by calling flush().
-    // It returns 0 to tell the caller ("write()") that no *new* data was
-    // consumed, and that the caller is now free to put its data into the
-    // now-empty buffer. This correctly follows the std lib contract.
+    /// drain() implements the std.Io.Writer contract for making buffer space.
+    ///
+    /// Strategy:
+    /// 1. Flush existing buffered data to the sink (making the buffer empty)
+    /// 2. Check if the incoming write is larger than the entire buffer capacity
+    ///    - If yes: encode and write directly to sink, bypassing the buffer
+    ///    - If no: return 0 to signal write() should buffer the data
+    ///
+    /// This two-phase approach optimizes for both small writes (buffering reduces
+    /// system calls) and large writes (direct encoding avoids unnecessary copying).
+    ///
+    /// Returning 0 tells write() that the buffer is now empty and ready to receive
+    /// the new data, per the std.Io.Writer.VTable contract.
     fn drain(
         interface: *std.Io.Writer,
         data: []const []const u8,
         splat: usize,
     ) std.Io.Writer.Error!usize {
-        // To make space, we just flush what we have.
+        // Phase 1: Make space by flushing existing buffered data.
         try flush(interface);
 
-        // The caller (`write`) might be trying to write a chunk of data
-        // that is larger than our entire buffer. In this case, we need to
-        // process that data directly without buffering it.
         const self: *BottomWriter = @alignCast(@fieldParentPtr("writer", interface));
         var consumed_from_args: usize = 0;
         const total_new_data_len = std.Io.Writer.countSplat(data, splat);
 
+        // Phase 2: Handle oversized writes by encoding directly to sink.
+        // This avoids the copy-to-buffer-then-flush cycle for large data.
         if (total_new_data_len > interface.buffer.len) {
-            // This new data will never fit in our buffer, so we must process it directly.
+            // Direct encoding path: process data without buffering.
+            // data[] is a splat array where the last element is repeated
+            // 'splat' times. We encode all parts sequentially.
             for (data[0 .. data.len - 1]) |part| {
                 for (part) |raw_byte| {
                     const encoded = common.BottomLut.lut(raw_byte);
@@ -67,6 +100,7 @@ pub const BottomWriter = struct {
                 }
                 consumed_from_args += part.len;
             }
+            // Handle the splatted final element
             if (data.len > 0) {
                 const pattern = data[data.len - 1];
                 for (0..splat) |_| {
@@ -80,8 +114,9 @@ pub const BottomWriter = struct {
             return consumed_from_args;
         }
 
-        // Otherwise, we made space, so we tell the caller we consumed 0 bytes
-        // from its new data, and it will now buffer it for us.
+        // Normal case: buffer is now empty, return 0 to signal write() should
+        // copy the new data into the buffer. This should maximize buffering efficiency
+        // for small writes.
         return 0;
     }
 };
@@ -147,27 +182,21 @@ test "BottomWriter works with power of two buffer" {
 }
 
 test "BottomWriter encodes individual bytes correctly" {
-    // This test writes all 256 byte values one-by-one to stress the
-    // buffering and drain logic of the writer.
+    // Stress test for drain() logic: write all 256 bytes individually with
+    // a small buffer to force frequent drain() calls and verify correctness.
 
     var allocating_writer = std.Io.Writer.Allocating.init(std.testing.allocator);
     defer allocating_writer.deinit();
 
-    // Use a small buffer to ensure drain() is called many times.
     var bottom_writer_buffer: [32]u8 = undefined;
-
     var encoder = BottomWriter.init(&bottom_writer_buffer, &allocating_writer.writer);
 
-    // 1. Write every possible byte value
     for (0..256) |i| {
         const byte: u8 = @truncate(i);
         try encoder.writer.writeByte(byte);
     }
-
-    // 2. IMPORTANT: Flush any remaining raw bytes in the buffer.
     try encoder.writer.flush();
 
-    // 3. Build the expected result by concatenating all known encodings.
     var expected_builder = std.ArrayList(u8){};
     defer expected_builder.deinit(std.testing.allocator);
 
@@ -177,7 +206,6 @@ test "BottomWriter encodes individual bytes correctly" {
         try expected_builder.appendSlice(std.testing.allocator, encoded);
     }
 
-    // 4. Compare the actual result with the expected result.
     const actual_result = allocating_writer.written();
     const expected_result = expected_builder.items;
 

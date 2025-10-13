@@ -1,8 +1,26 @@
+//! # Bottom Decoder - Streaming reader for decoding Bottom emoji encoding
+//!
+//! Provides a std.Io.Reader-compatible interface for decoding Bottom-encoded
+//! text. Handles partial sequences across read boundaries and validates input.
+
 const std = @import("std");
 const common = @import("common.zig");
 
+/// Streaming decoder for Bottom emoji encoding.
+///
+/// Implements std.Io.Reader interface to decode Bottom-encoded data from an
+/// underlying reader. Handles sequences that span multiple read() calls by
+/// maintaining a partial sequence buffer.
+///
+/// The decoder tolerates invalid/garbage sequences by skipping them, continuing
+/// to decode subsequent valid data after the next delimiter.
 pub const BottomReader = struct {
+    // Internal buffer for handling sequences that span multiple read() calls.
+    // Sized to accommodate the longest Bottom sequence (48 bytes) plus delimiters.
     const processing_buffer_size = 256;
+
+    // Maximum bytes a single encoded sequence can occupy. Validated at comptime
+    // against the actual lookup table to catch encoding changes.
     const max_encoded_length = 48;
 
     reader: std.Io.Reader,
@@ -11,6 +29,9 @@ pub const BottomReader = struct {
     partial_sequence_buffer: [processing_buffer_size]u8,
     partial_sequence_len: usize,
 
+    // Compile-time validation: ensure our max_encoded_length constant is
+    // actually sufficient for all bytes in the lookup table. This catches
+    // encoding changes that would overflow the partial sequence buffer.
     comptime {
         for (0..256) |i| {
             const encoded = common.BottomLut.lut(@intCast(i));
@@ -20,6 +41,13 @@ pub const BottomReader = struct {
         }
     }
 
+    /// Initialize a Bottom decoder.
+    ///
+    /// buffer: Output buffer for decoded bytes (can be zero-sized for unbuffered streaming)
+    /// encoded_buffer: Temporary buffer for reading encoded data from source (can be zero-sized)
+    /// source: The underlying reader providing encoded Bottom data
+    ///
+    /// Returns a BottomReader that implements std.Io.Reader interface.
     pub fn init(buffer: []u8, encoded_buffer: []u8, source: *std.Io.Reader) BottomReader {
         return .{
             .reader = .{
@@ -70,7 +98,9 @@ pub const BottomReader = struct {
         const encoded_data = encoded_writer.buffered();
         const delimiter = common.BottomDecodeLut.delimiter;
 
-        // Build the combined view of all available data.
+        // Build the combined view of all available data. This handles sequences
+        // that span multiple read() calls: we prepend any partial sequence from
+        // the previous call, then append the newly read data.
         var view_buf: [processing_buffer_size]u8 = undefined;
         var view_len: usize = 0;
         if (self.partial_sequence_len > 0) {
@@ -81,9 +111,11 @@ pub const BottomReader = struct {
         view_len += encoded_data.len;
 
         const view = view_buf[0..view_len];
-        var view_pos: usize = 0; // This cursor marks the start of the sequence we're considering.
+        var view_pos: usize = 0;
 
-        // Loop through the view, consuming sequences (or garbage) separated by delimiters.
+        // Parse delimiter-separated sequences. Sequences are validated for length
+        // (<=48 bytes) and decodability. Invalid sequences are skipped, allowing
+        // the decoder to recover from garbage data.
         while (view_pos < view.len) {
             if (decoded_count >= dest.len) break;
 
@@ -93,7 +125,9 @@ pub const BottomReader = struct {
             if (delim_opt) |relative_delim_pos| {
                 const sequence = remaining_view[0..relative_delim_pos];
 
-                // Check if the candidate is a valid, decodable sequence.
+                // Validate and decode the sequence. Sequences longer than 48 bytes
+                // or containing invalid emoji combinations are silently skipped.
+                // @branchHint(.likely) optimizes for the common case of valid data.
                 if (sequence.len <= max_encoded_length) {
                     if (common.BottomDecodeLut.decode(sequence)) |byte| {
                         @branchHint(.likely);
@@ -101,22 +135,28 @@ pub const BottomReader = struct {
                         decoded_count += 1;
                     }
                 }
-                // Regardless of outcome, advance the cursor past this entire segment.
+                // Advance past this sequence and its delimiter, regardless of
+                // whether we successfully decoded it. This allows recovery from
+                // corrupted data.
                 view_pos += relative_delim_pos + delimiter.len;
             } else {
-                // No more delimiters in the view. The rest is a partial sequence.
+                // No delimiter found: the remaining data is a partial sequence
+                // that will be completed in the next read() call.
                 break;
             }
         }
 
-        // Save any unprocessed data for the next call.
+        // Preserve unprocessed data (incomplete sequence without delimiter) for
+        // the next stream() call. This is essential for sequences that span
+        // multiple read boundaries.
         const remaining_len = view.len - view_pos;
         if (remaining_len > 0) {
             @memcpy(self.partial_sequence_buffer[0..remaining_len], view[view_pos..]);
         }
         self.partial_sequence_len = remaining_len;
 
-        // Final EOF check for truncated data.
+        // Detect truncated input: EOF reached but partial sequence remains.
+        // This indicates corrupted/incomplete Bottom encoding.
         if (hit_eof and self.partial_sequence_len > 0) {
             return error.ReadFailed;
         }
@@ -231,10 +271,10 @@ test "BottomReader handles partial reads correctly" {
         }
     }
 
-    // Test with data that will require multiple partial reads
+    // Verify partial_sequence_buffer works correctly when sequences span
+    // multiple read() calls. Uses tiny buffers to force this condition.
     const original = "The quick brown fox jumps over the lazy dog";
 
-    // First encode it
     var encode_sink = std.Io.Writer.Allocating.init(std.testing.allocator);
     defer encode_sink.deinit();
 
@@ -245,10 +285,9 @@ test "BottomReader handles partial reads correctly" {
 
     const encoded = encode_sink.written();
 
-    // Now decode with intentionally tiny buffers to force many partial reads
     var source_reader: std.Io.Reader = .fixed(encoded);
-    var decode_buffer: [4]u8 = undefined; // Very small decode buffer
-    var encoded_buffer: [32]u8 = undefined; // Small encoded buffer
+    var decode_buffer: [4]u8 = undefined;
+    var encoded_buffer: [32]u8 = undefined;
 
     var decoder = BottomReader.init(&decode_buffer, &encoded_buffer, &source_reader);
 
@@ -265,8 +304,8 @@ test "BottomReader handles sequences spanning multiple reads" {
         }
     }
 
-    // Create encoded data where a single sequence might be split across reads
-    // Use byte 255 which has a long encoding
+    // Verify handling of sequences split mid-encoding across read boundaries.
+    // Byte 255 has one of the longest encodings in the Bottom scheme.
     const original = [_]u8{255} ** 10;
 
     var encode_sink = std.Io.Writer.Allocating.init(std.testing.allocator);
@@ -279,10 +318,9 @@ test "BottomReader handles sequences spanning multiple reads" {
 
     const encoded = encode_sink.written();
 
-    // Decode with buffer smaller than a single encoded byte sequence
     var source_reader: std.Io.Reader = .fixed(encoded);
     var decode_buffer: [2]u8 = undefined;
-    var encoded_buffer: [20]u8 = undefined; // Smaller than one 255 encoding
+    var encoded_buffer: [20]u8 = undefined;
 
     var decoder = BottomReader.init(&decode_buffer, &encoded_buffer, &source_reader);
 
@@ -299,8 +337,8 @@ test "BottomReader handles edge case with exact buffer boundary" {
         }
     }
 
-    // Test case where delimiter falls exactly at buffer boundary
-    const original = "ABCDEFGHIJKLMNOP"; // 16 bytes
+    // Tests delimiter alignment with buffer boundaries across multiple sizes.
+    const original = "ABCDEFGHIJKLMNOP";
 
     var encode_sink = std.Io.Writer.Allocating.init(std.testing.allocator);
     defer encode_sink.deinit();
@@ -312,7 +350,6 @@ test "BottomReader handles edge case with exact buffer boundary" {
 
     const encoded = encode_sink.written();
 
-    // Use various buffer sizes to test boundary conditions
     const buffer_sizes = [_]usize{ 8, 16, 32, 64, 128 };
 
     for (buffer_sizes) |buf_size| {
@@ -331,8 +368,8 @@ test "BottomReader handles edge case with exact buffer boundary" {
 }
 
 test "BottomReader handles truncated data" {
-    // Verify truncated sequences are detected
-    const encoded = "💖💖,,,,"; // 'h' without delimiter
+    // Sequences without delimiters at EOF should error (corrupted encoding)
+    const encoded = "💖💖,,,,";
     var source_reader: std.Io.Reader = .fixed(encoded);
 
     var decode_buffer: [8]u8 = undefined;
@@ -343,7 +380,6 @@ test "BottomReader handles truncated data" {
     var result: [1]u8 = undefined;
     const err = bottom_reader.reader.readSliceAll(&result);
 
-    // Should fail because sequence is incomplete
     try std.testing.expectError(error.ReadFailed, err);
 }
 
@@ -367,16 +403,11 @@ test "BottomReader handles delimiter split across reads" {
     try std.testing.expectEqual(@as(u8, 104), result[0]);
 }
 test "BottomReader skips garbage and decodes subsequent valid data" {
-    // This test verifies the decoder can handle a corrupt/invalid sequence
-    // (either too long or undecodable) and then continue decoding correctly.
+    // Verify error recovery: invalid/oversized sequences are skipped, allowing
+    // decoding to continue with the next valid sequence after a delimiter.
 
-    // 1. Create a "garbage" segment: a long string of encoded data.
-    const garbage_sequence = "💖💖💖💖💖💖💖💖💖💖💖💖💖💖💖💖💖"; // 17 hearts = 51 bytes > 48
-
-    // 2. Create a valid sequence for the letter 'A'.
-    const valid_sequence_A = "💖🥺,"; // Encoded 'A'
-
-    // 3. Construct the full stream: [GARBAGE][DELIMITER][VALID][DELIMITER]
+    const garbage_sequence = "💖💖💖💖💖💖💖💖💖💖💖💖💖💖💖💖💖";
+    const valid_sequence_A = "💖🥺,";
     const delimiter = "👉👈";
     const full_encoded_string = garbage_sequence ++ delimiter ++ valid_sequence_A ++ delimiter;
     const expected_decoded_byte: u8 = '8';
@@ -384,11 +415,10 @@ test "BottomReader skips garbage and decodes subsequent valid data" {
     var source_reader: std.Io.Reader = .fixed(full_encoded_string);
 
     var decode_buffer: [16]u8 = undefined;
-    var encoded_buffer: [64]u8 = undefined; // Large enough to get both sequences
+    var encoded_buffer: [64]u8 = undefined;
 
     var bottom_reader = BottomReader.init(&decode_buffer, &encoded_buffer, &source_reader);
 
-    // With the final robust logic, this should read 'A' and ignore the garbage.
     const result = try bottom_reader.reader.takeByte();
 
     try std.testing.expectEqual(expected_decoded_byte, result);

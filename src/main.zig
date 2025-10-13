@@ -1,4 +1,9 @@
-// Main program - updated for Zig 0.15.1
+//! # Bottom CLI - Command-line encoder/decoder for Bottom text encoding
+//!
+//! Provides stdin/stdout and file-based encoding/decoding with comprehensive
+//! error handling and cross-platform UTF-8 support. Supports the Bottom emoji
+//! encoding format (https://github.com/bottom-software-foundation/bottom-spec).
+
 const std = @import("std");
 const builtin = @import("builtin");
 const build_options = @import("build_options");
@@ -8,8 +13,13 @@ const bottom = @import("bottom");
 
 const help_text = @embedFile("help.txt");
 
+// 128KB buffer size for input/output operations.
 const bufferSize = 128 * 1024;
-const max_expansion_per_byte = 48; // Maximum bytes a single byte can expand to when encoded
+
+// Maximum encoding expansion: byte 200 (✨✨✨,,,) expands to 48 bytes.
+// This is the worst-case for any single byte in the Bottom encoding scheme.
+const max_expansion_per_byte = 48;
+
 const newline = if (builtin.os.tag == .windows) "\r\n" else "\n";
 
 const scoped = std.log.scoped(.BottomCliProgram);
@@ -63,8 +73,11 @@ const BottomErrorHandler = struct {
         data: BottomZigErrors,
         node: std.DoublyLinkedList.Node = .{},
     };
-    
+
     errors_to_report: std.DoublyLinkedList,
+    // Fixed-size array to avoid dynamic allocation. 1024 errors should be
+    // sufficient for any reasonable CLI session. Atomically indexed for
+    // thread-safety in case of concurrent error reporting.
     node_array: [1024]ErrorNode,
     index: usize,
     exit_code: ExitCode = .{},
@@ -178,6 +191,9 @@ const BottomConsoleApp = struct {
             err_handler.report(error.failed_to_open_output_file);
         }
 
+        // Validate mutually exclusive flags before proceeding. The user should
+        // specify exactly one operation: --version, --bottomify, or --regress.
+        // --help can be combined with anything and takes precedence.
         if ((options.version and (options.bottomify or options.regress)) or options.bottomify and options.regress) {
             err_handler.report(error.exclusive_arguments_provided);
         }
@@ -264,10 +280,11 @@ const BottomConsoleApp = struct {
     }
 
     pub fn regress(self: *BottomConsoleApp) void {
-        var input_buffer: [0]u8 = undefined;
+        // FIXME: Figure out the buffers sizes here
+        var input_buffer: [bufferSize]u8 = undefined;
         var output_buffer: [bufferSize]u8 = undefined;
-        var decode_buffer: [0]u8 = undefined;
-        var encoded_buffer: [0]u8 = undefined;
+        var decode_buffer: [bufferSize ]u8 = undefined;
+        var encoded_buffer: [bufferSize]u8 = undefined;
 
         var input_reader = std.fs.File.Reader.init(self.input_file, &input_buffer);
         var output_writer = std.fs.File.Writer.init(self.output_file, &output_buffer);
@@ -291,6 +308,9 @@ const BottomConsoleApp = struct {
 
 pub fn main() noreturn {
     var app = init_blk: {
+        // Use different allocators based on build mode:
+        // - Release builds use the fast SMP allocator for performance
+        // - Debug builds use DebugAllocator to catch memory bugs (leaks, double-frees, etc.)
         const underlying_allocator = allocator_blk: {
             if (builtin.mode != .Debug) {
                 break :allocator_blk std.heap.smp_allocator;

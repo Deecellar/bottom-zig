@@ -1,13 +1,33 @@
+//! # Bottom Encoding Benchmark Suite
+//!
+//! Measures encoding/decoding performance across various data sizes with
+//! configurable buffer sizes and iteration counts. Provides min/max/avg
+//! timing statistics and throughput measurements.
+
 const std = @import("std");
 const encoder_writer = @import("encoder_writer.zig");
 const decoder_reader = @import("decoder_reader.zig");
 
 const BenchConfig = struct {
+    // Number of timed iterations per benchmark. 10 provides stable results
+    // without excessive runtime. Increase for more precision.
     iterations: usize = 10,
+
+    // Warmup runs to stabilize CPU caches and branch predictors before timing.
+    // 3 runs is sufficient to reach steady-state performance on modern CPUs.
     warmup_runs: usize = 3,
+
+    // Test data sizes: 1KB, 1MB, 10MB, 50MB, 100MB
+    // Covers range from cache-resident to memory-bound workloads.
+    // TODO: Add 1GB test size for long-running stress testing.
     sizes: []const usize = &[_]usize{ 1024, 1024 * 1024, 10 * 1024 * 1024, 50 * 1024 * 1024 , 100 * 1024 * 1024 },
+
+    // Buffer sizes for benchmark runs. Not tuned for optimal performance.
     writer_buffer_size: usize = 64 * 1024,
     reader_buffer_size: usize = 64 * 1024,
+
+    // Decoder encoded buffer: 64KB * 12 = 768KB
+    // TODO: Verify this sizing is adequate for worst-case encoding expansion.
     reader_encoded_buffer_size: usize = 64 * 1024 * 12,
 };
 

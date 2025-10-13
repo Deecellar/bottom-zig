@@ -1,30 +1,27 @@
 const std = @import("std");
 
 pub fn build(b: *std.Build) void {
-    // Standard flags
+    // Standard target and optimization options from command-line flags
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    // External deps (new style)
-    // Replace "args" with your build.zig.zon package name if different.
+    // External dependency: zig-args for CLI argument parsing
+    // Fetched from build.zig.zon package manifest
     const args_dep = b.dependency("args", .{
         .target = target,
         .optimize = optimize,
     });
 
-    // Build options
+    // Build-time configuration options embedded into binaries
     const build_opts = b.addOptions();
     build_opts.addOption([]const u8, "version", "v0.1.0");
 
     // Library module that consumers can import as `@import("bottom")`
     const bottom_mod = b.addModule("bottom", .{
         .root_source_file = b.path("bottom.zig"),
-        .target = target, // enables using this as a test root later
+        .target = target,
     });
 
-    // -----------------------
-    // Main executable (CLI)
-    // -----------------------
     const exe = b.addExecutable(.{
         .name = "bottom-zig",
         .root_module = b.createModule(.{
@@ -40,23 +37,18 @@ pub fn build(b: *std.Build) void {
     exe.root_module.addOptions("build_options", build_opts);
     b.installArtifact(exe);
 
-    // `zig build run -- <args…>`
     const run_cmd = b.addRunArtifact(exe);
     run_cmd.step.dependOn(b.getInstallStep());
     if (b.args) |args| run_cmd.addArgs(args);
     const run_step = b.step("run", "Run the Bottom Encoder/Decoder");
     run_step.dependOn(&run_cmd.step);
 
-    // -----------------------
-    // Tests
-    // -----------------------
-    // CLI module tests (tests inside src/main.zig’s module)
+    // Test both the CLI module and the library module independently
     const exe_tests = b.addTest(.{
         .root_module = exe.root_module,
     });
     const run_exe_tests = b.addRunArtifact(exe_tests);
 
-    // Library tests: test the bottom module directly
     const lib_tests = b.addTest(.{
         .root_module = bottom_mod,
     });
@@ -66,10 +58,7 @@ pub fn build(b: *std.Build) void {
     test_all.dependOn(&run_exe_tests.step);
     test_all.dependOn(&run_lib_tests.step);
 
-    // -----------------------
-    // Libraries (C ABI)
-    // -----------------------
-    // Static lib
+    // C-compatible libraries for FFI usage
     const static_lib = b.addLibrary(.{
         .name = "bottomz",
         .root_module = b.createModule(.{
@@ -85,7 +74,6 @@ pub fn build(b: *std.Build) void {
     static_lib.linkLibC();
     b.installArtifact(static_lib);
 
-    // Shared lib
     const shared_lib = b.addLibrary(.{
         .name = "bottomz",
         .root_module = b.createModule(.{
@@ -101,24 +89,18 @@ pub fn build(b: *std.Build) void {
     shared_lib.linkLibC();
     b.installArtifact(shared_lib);
 
-    // Headers (newer API spells it `installHeaderFile`)
-    // Installs to: zig-out/include/bottom/bottom.h
+    // Install C header to zig-out/include/bottom/bottom.h
     const header_install = b.addInstallHeaderFile(
         b.path("include/bottom.h"),
         "bottom/bottom.h",
     );
 
-    
-
-    // Convenience step to install only libs/headers
     const install_lib_step = b.step("install-lib", "Install library only (static+shared+headers)");
     install_lib_step.dependOn(&static_lib.step);
     install_lib_step.dependOn(&shared_lib.step);
     install_lib_step.dependOn(&header_install.step);
 
-    // -----------------------
-    // WASM example (no start)
-    // -----------------------
+    // WebAssembly target requires specific configuration for JavaScript interop
     const wasm_target = b.resolveTargetQuery(.{
         .cpu_arch = .wasm32,
         .os_tag = .freestanding,
@@ -130,15 +112,19 @@ pub fn build(b: *std.Build) void {
         .root_module = b.createModule(.{
             .root_source_file = b.path("src/wasm-example.zig"),
             .target = wasm_target,
-            .optimize = .ReleaseSmall,
+            .optimize = .ReleaseSmall, // Minimize binary size for web
             .imports = &.{
                 .{ .name = "bottom", .module = bottom_mod },
             },
         }),
     });
+    // Strip debug symbols to reduce WASM binary size for faster downloads
     wasm_example.root_module.strip = true;
+    // Export dynamic symbols for JavaScript interop
     wasm_example.rdynamic = true;
+    // No _start function - JavaScript provides the entry point
     wasm_example.entry = .disabled;
+    // Export function table for JavaScript to call WASM functions
     wasm_example.export_table = true;
 
     const wasm_step = b.step("wasm-shared", "Build the WASM example");
@@ -146,9 +132,7 @@ pub fn build(b: *std.Build) void {
     const wasm_install = b.addInstallArtifact(wasm_example, .{});
     wasm_step.dependOn(&wasm_install.step);
 
-    // -----------------------
-    // Benchmark executable
-    // -----------------------
+    // Benchmark always uses ReleaseFast regardless of -Doptimize flag
     const bench = b.addExecutable(.{
         .name = "benchmark",
         .root_module = b.createModule(.{
@@ -171,27 +155,22 @@ pub fn build(b: *std.Build) void {
     const run_bench_step = b.step("run-benchmark", "Run the Bottom Encoder/Decoder benchmark");
     run_bench_step.dependOn(&run_bench.step);
 
-    // -----------------------
-    // C example that links installed lib
-    // -----------------------
+    // C example demonstrates FFI by linking against the installed C library
     const clib_exe = b.addExecutable(.{
         .name = "clib",
         .root_module = b.createModule(.{
-            // no Zig root source file, this is a C example
             .target = target,
             .optimize = optimize,
         }),
-
     });
     clib_exe.linkLibC();
 
-    // Ensure libs and header are installed before building the C example
+    // Dependencies must be built before C example links against them
     clib_exe.step.dependOn(&static_lib.step);
     clib_exe.step.dependOn(&shared_lib.step);
     clib_exe.step.dependOn(&header_install.step);
 
-    // Point include/lib paths at the install prefix (zig-out by default)
-    // NOTE: This assumes you keep the default prefix (zig-out/).
+    // Point to zig-out for installed headers and libraries
     const inc_dir = b.pathJoin(&.{ b.install_prefix, "include" });
     const lib_dir = b.pathJoin(&.{ b.install_prefix, "lib" });
 

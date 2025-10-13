@@ -1,18 +1,29 @@
 //! # WebAssembly Bottom Encoding Interface
-//! 
+//!
 //! Provides a WebAssembly interface for the bottom-zig encoder/decoder library.
 //! Enables web applications to encode/decode bottom text through JavaScript.
+//!
+//! ## Memory Management Contract
+//! - All memory is allocated from std.heap.wasm_allocator (JavaScript-managed)
+//! - Encoded/decoded results are owned by the WASM module until JavaScript copies them
+//! - JavaScript must call setResult() to receive ownership of output data
+//! - After setResult(), JavaScript is responsible for the memory lifetime
+//!
+//! ## Error Handling
+//! - Errors are reported via appendException() and trigger restart()
+//! - RestartState enum communicates error type back to JavaScript
+//! - Panics trigger trap() which stops WASM execution
 
 const std = @import("std");
 const bottom = @import("bottom");
 
-/// Global allocator for WASM memory management
+/// Global allocator for WASM memory management. Initialized in _start().
+/// Uses std.heap.wasm_allocator which interfaces with JavaScript's WebAssembly.Memory.
 var globalAllocator: std.mem.Allocator = undefined;
 
-/// Logging scope for the WASM module
 const scoped = std.log.scoped(.WasmBottomProgram);
 
-/// Buffer size for text processing (128KB)
+// Buffer sizes for WASM encoding/decoding operations.
 const buffer_size = 128 * 1024;
 const max_expansion_per_byte = 48;
 
@@ -141,7 +152,16 @@ export fn encode() void {
     hideException();
 }
 
-/// External JavaScript interface functions
+/// External JavaScript interface functions (implemented in JS, called from WASM)
+///
+/// setResult: Pass encoded/decoded result back to JavaScript
+/// appendResult: Append additional data to result (for streaming)
+/// appendException: Report error message to JavaScript UI
+/// hideException: Clear error display
+/// getText: Get pointer to input text from JavaScript
+/// getTextLen: Get length of input text from JavaScript
+/// restart: Signal error state to JavaScript (triggers UI update)
+/// logus: Console logging from WASM to JavaScript
 extern fn setResult(ptr: [*]const u8, len: u32) void;
 extern fn appendResult(ptr: [*]const u8, len: u32) void;
 extern fn appendException(ptr: [*]const u8, len: u32) void;
