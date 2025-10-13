@@ -1,11 +1,12 @@
 .{
     .paths = .{ "src", "build.zig", "include", "public" },
-    .name = "bottom-zig",
-    .version = "0.0.5",
+    .name = .bottom_zig,
+    .fingerprint = 0xb09e41085ab56146,
+    .version = "0.1.0",
     .dependencies = .{
         .args = .{
-            .url = "https://github.com/ikskuh/zig-args/archive/968258dc1b1230493d8f1677097c832a3d7e0bd8.tar.gz",
-            .hash = "1220bdedf1a993d852d8aebcd63922a8fb163fac37b9c6ff72d187b2847a4a3a4248",
+            .url = "https://github.com/ikskuh/zig-args/archive/8ae26b44a884ff20dca98ee84c098e8f8e94902f.tar.gz",
+            .hash = "args-0.0.0-CiLiqojRAACGzDRO7A9dw7kWSchNk29caJZkXuMCb0Cn",
         },
     },
 }
