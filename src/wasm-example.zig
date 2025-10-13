@@ -2,44 +2,19 @@
 //! 
 //! Provides a WebAssembly interface for the bottom-zig encoder/decoder library.
 //! Enables web applications to encode/decode bottom text through JavaScript.
-//!
-//! ## Architecture
-//! - Uses WASM memory allocator
-//! - Handles text encoding/decoding in chunks
-//! - Provides error handling and reporting
-//! - Exposes C-style interface for JavaScript
-//!
-//! ## Usage Example
-//! ```js
-//! // Initialize WASM module
-//! _start();
-//! 
-//! // Encode text
-//! setText("hello");
-//! encode();
-//! getResult(); // Returns bottom encoding
-//! 
-//! // Decode bottom text
-//! setText("🥺👉👈");
-//! decode();
-//! getResult(); // Returns original text
-//! ```
 
 const std = @import("std");
-const encoder = @import("encoder.zig");
-const decoder = @import("decoder.zig");
+const bottom = @import("bottom");
 
 /// Global allocator for WASM memory management
 var globalAllocator: std.mem.Allocator = undefined;
-
-/// Exception tracking for error handling
-var exception: std.ArrayList([]const u8) = undefined;
 
 /// Logging scope for the WASM module
 const scoped = std.log.scoped(.WasmBottomProgram);
 
 /// Buffer size for text processing (128KB)
 const buffer_size = 128 * 1024;
+const max_expansion_per_byte = 48;
 
 /// Error states for JavaScript interaction
 const RestartState = enum(u32) {
@@ -53,21 +28,13 @@ const RestartState = enum(u32) {
 var current_state: RestartState = .generic_error;
 
 /// Initialize the WASM module
-/// Sets up memory allocator and exception handling
 export fn _start() void {
     globalAllocator = std.heap.wasm_allocator;
-    exception = std.ArrayList([]const u8).init(globalAllocator);
 }
 
 /// # Bottom Text Decoder
 /// Decodes bottom-encoded text into regular UTF-8
-///
-/// ## Implementation
-/// - Processes input in chunks
-/// - Uses pre-allocated buffers
-/// - Reports errors through RestartState
 export fn decode() void {
-    var temp: []const u8 = &@as([1]u8, undefined);
     current_state = .regress_failed;
     const len = getTextLen();
     if (len > std.math.maxInt(usize)) {
@@ -75,88 +42,102 @@ export fn decode() void {
         return;
     }
     const text = getText()[0..len];
-    const buffer: []u8 = globalAllocator.alloc(u8, encoder.BottomEncoder.max_expansion_per_byte * buffer_size) catch |err| {
-        scoped.err("Failed with err: {any}", .{err});
+    
+    const decode_buffer = globalAllocator.alloc(u8, buffer_size) catch |err| {
+        scoped.err("Failed to allocate decode buffer: {any}", .{err});
         restart(@intFromEnum(current_state));
         return;
     };
-    defer globalAllocator.free(buffer);
-    const bufferRegress: []u8 = globalAllocator.alloc(u8, buffer_size) catch |err| {
-        scoped.err("Failed with err: {any}", .{err});
+    defer globalAllocator.free(decode_buffer);
+    
+    const encoded_buffer = globalAllocator.alloc(u8, max_expansion_per_byte * buffer_size) catch |err| {
+        scoped.err("Failed to allocate encoded buffer: {any}", .{err});
         restart(@intFromEnum(current_state));
         return;
     };
-    defer globalAllocator.free(bufferRegress);
-
-    var bufferInput = std.io.fixedBufferStream(text);
-    setResult("", 0);
-    while (temp.len != 0) {
-        temp = (bufferInput.reader().readUntilDelimiterOrEof(buffer, "👈"[4]) catch |err| {
-            scoped.err("Failed with err: {any}", .{err});
-            restart(@intFromEnum(current_state));
-            return;
-        }) orelse &@as([0]u8, undefined);
-        if (temp.len > 0) {
-            const outbuffer: []u8 = decoder.BottomDecoder.decode(temp, bufferRegress) catch |err| {
-                scoped.err("Failed with err: {any}", .{err});
-                return;
-            };
-            appendResult(outbuffer.ptr, @truncate(outbuffer.len));
-        }
-    }
+    defer globalAllocator.free(encoded_buffer);
+    
+    const output_buffer = globalAllocator.alloc(u8, buffer_size) catch |err| {
+        scoped.err("Failed to allocate output buffer: {any}", .{err});
+        restart(@intFromEnum(current_state));
+        return;
+    };
+    defer globalAllocator.free(output_buffer);
+    
+    // Create input reader from text
+    var input_reader: std.Io.Reader = .fixed(text);
+    
+    // Create decoder
+    var decoder = bottom.BottomReader.init(decode_buffer, encoded_buffer, &input_reader);
+    
+    // Create output writer (allocating)
+    var output_allocating = std.Io.Writer.Allocating.init(globalAllocator);
+    defer output_allocating.deinit();
+    
+    // Stream all data from decoder to output
+    _ = decoder.reader.streamRemaining(&output_allocating.writer) catch |err| {
+        scoped.err("Failed to decode: {any}", .{err});
+        restart(@intFromEnum(current_state));
+        return;
+    };
+    
+    const result = output_allocating.writer.buffered();
+    setResult(result.ptr, @truncate(result.len));
     hideException();
 }
 
 /// # Text Encoder 
 /// Encodes regular text into bottom encoding
-///
-/// ## Implementation
-/// - Processes input in chunks
-/// - Uses pre-allocated buffers
-/// - Reports errors through RestartState
 export fn encode() void {
     current_state = .bottomify_failed;
     const len = getTextLen();
     if (len > std.math.maxInt(usize)) {
-        const err = error.input_too_long;
-
-        const message = std.fmt.allocPrint(globalAllocator, "Failed with err: {any}", .{err}) catch |err2| {
-            scoped.err("Failed with err: {any}", .{err});
-            scoped.err("Failed with err: {any}", .{err2});
-            restart(@intFromEnum(current_state));
-            return;
-        };
-        appendException(message.ptr, @truncate(message.len));
+        scoped.err("Input Too Long", .{});
+        restart(@intFromEnum(current_state));
         return;
     }
     const text = getText()[0..len];
-    var buffer: []u8 = globalAllocator.alloc(u8, buffer_size) catch |err| {
-        scoped.err("Failed with err: {any}", .{err});
+    
+    const input_buffer = globalAllocator.alloc(u8, buffer_size) catch |err| {
+        scoped.err("Failed to allocate input buffer: {any}", .{err});
         restart(@intFromEnum(current_state));
         return;
     };
-    defer globalAllocator.free(buffer);
-    const bufferBottom: []u8 = globalAllocator.alloc(u8, encoder.BottomEncoder.max_expansion_per_byte * buffer_size) catch |err| {
-        scoped.err("Failed with err: {any}", .{err});
+    defer globalAllocator.free(input_buffer);
+    
+    const encode_buffer = globalAllocator.alloc(u8, max_expansion_per_byte * buffer_size) catch |err| {
+        scoped.err("Failed to allocate encode buffer: {any}", .{err});
         restart(@intFromEnum(current_state));
         return;
     };
-    defer encoder.BottomEncoder.encodeDealloc(globalAllocator, bufferBottom);
-    setResult("", 0);
-    var bufferInput = std.io.fixedBufferStream(text);
-    var size: usize = 1;
-    while (size != 0) {
-        size = bufferInput.read(buffer) catch |err| {
-            scoped.err("Failed with err: {any}", .{err});
-            restart(@intFromEnum(current_state));
-            return;
-        };
-        if (size > 0) {
-            const outbuffer: []u8 = encoder.BottomEncoder.encode(buffer[0..size], bufferBottom);
-            appendResult(outbuffer.ptr, @truncate(outbuffer.len));
-        }
-    }
-
+    defer globalAllocator.free(encode_buffer);
+    
+    // Create input reader from text
+    var input_reader: std.Io.Reader = .fixed(text);
+    
+    // Create output writer (allocating)
+    var output_allocating = std.Io.Writer.Allocating.init(globalAllocator);
+    defer output_allocating.deinit();
+    
+    // Create encoder
+    var encoder = bottom.BottomWriter.init(encode_buffer, &output_allocating.writer);
+    
+    // Stream all data from input to encoder
+    _ = input_reader.streamRemaining(&encoder.writer) catch |err| {
+        scoped.err("Failed to read input: {any}", .{err});
+        restart(@intFromEnum(current_state));
+        return;
+    };
+    
+    // Flush encoder
+    encoder.writer.flush() catch |err| {
+        scoped.err("Failed to flush encoder: {any}", .{err});
+        restart(@intFromEnum(current_state));
+        return;
+    };
+    
+    const result = output_allocating.writer.buffered();
+    setResult(result.ptr, @truncate(result.len));
     hideException();
 }
 
@@ -171,20 +152,11 @@ extern fn restart(status: u32) void;
 pub extern fn logus(ptr: [*]const u8, len: u32) void;
 
 /// Standard options configuration
-pub const std_options = blk: {
-    var default_options: std.Options = .{};
-    default_options.logFn = logFn;
-    break :blk default_options;
+pub const std_options: std.Options = .{
+    .logFn = logFn,
 };
 
 /// # Logging Function
-/// Handles error reporting and logging for the WASM module
-///
-/// ## Parameters
-/// - `message_level`: Log severity level
-/// - `scope`: Logging scope
-/// - `format`: Message format string
-/// - `args`: Format arguments
 pub fn logFn(
     comptime message_level: std.log.Level,
     comptime scope: @Type(.enum_literal),
@@ -196,66 +168,46 @@ pub fn logFn(
         logus("failed on error:", "failed on error:".len);
         logus(@errorName(err).ptr, @errorName(err).len);
         restart(@intFromEnum(current_state));
-
         return;
     };
-    const to_print = std.fmt.allocPrint(globalAllocator, "{s}-{s}: {s}", .{ @tagName(scope), message_level.asText(), message }) catch |err| {
+    defer globalAllocator.free(message);
+    
+    const to_print = std.fmt.allocPrint(globalAllocator, "{s}-{s}: {s}", .{ 
+        @tagName(scope), 
+        message_level.asText(), 
+        message 
+    }) catch |err| {
         logus("failed on error:", "failed on error:".len);
         logus(@errorName(err).ptr, @errorName(err).len);
         restart(@intFromEnum(current_state));
-
         return;
     };
+    defer globalAllocator.free(to_print);
+    
     appendException(to_print.ptr, @truncate(to_print.len));
     logus(to_print.ptr, @truncate(to_print.len));
-    globalAllocator.free(message);
-    globalAllocator.free(to_print);
 }
 
 /// # Panic Handler
-/// Manages unrecoverable errors in the WASM module
-///
-/// ## Parameters
-/// - `msg`: Error message
-/// - `stackTrace`: Optional stack trace
-/// - `return_address`: Optional return address
 pub fn panic(msg: []const u8, stackTrace: ?*std.builtin.StackTrace, return_address: ?usize) noreturn {
     current_state = .panic;
-    restart(@intFromEnum(current_state));
-    var stack_trace_print: ?[]u8 = null;
-    if (stackTrace != null) {
-        stack_trace_print = std.fmt.allocPrint(globalAllocator, "{?} {?}", .{ stackTrace, return_address }) catch |err| {
-            logus("failed on error:", "failed on error:".len);
-            logus(@errorName(err).ptr, @errorName(err).len);
+    
+    if (stackTrace) |st| {
+        const stack_trace_print = std.fmt.allocPrint(globalAllocator, "{any} {any}", .{ st, return_address }) catch {
+            logus("failed to format stack trace", "failed to format stack trace".len);
             restart(@intFromEnum(current_state));
-
             trap();
         };
+        defer globalAllocator.free(stack_trace_print);
+        logus(stack_trace_print.ptr, @truncate(stack_trace_print.len));
     }
-
-    const message = std.fmt.allocPrint(globalAllocator, "{s}", .{msg}) catch |err| {
-        logus("failed on error:", "failed on error:".len);
-        logus(@errorName(err).ptr, @errorName(err).len);
-        restart(@intFromEnum(current_state));
-
-        trap();
-    };
-    const to_print = std.fmt.allocPrint(globalAllocator, "{s}", .{message}) catch |err| {
-        logus("failed on error:", "failed on error:".len);
-        logus(@errorName(err).ptr, @errorName(err).len);
-        restart(@intFromEnum(current_state));
-        trap();
-    };
-    logus(to_print.ptr, @truncate(to_print.len));
-    globalAllocator.free(message);
-    globalAllocator.free(to_print);
-    if (stack_trace_print != null) {
-        globalAllocator.free(stack_trace_print.?);
-    }
+    
+    logus(msg.ptr, @truncate(msg.len));
+    restart(@intFromEnum(current_state));
     trap();
 }
 
-/// Traps execution in debug mode
+/// Traps execution
 inline fn trap() noreturn {
     while (true) {
         @breakpoint();
