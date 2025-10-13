@@ -37,7 +37,7 @@ jobs:
         run: zig build --verbose
 
       - name: Run Tests
-        run: zig build test-lib
+        run: zig build test
 
       - name: Create Wasm Example
         if: ${{ matrix.os == 'ubuntu-latest' }}
