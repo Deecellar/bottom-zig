@@ -1,12 +1,14 @@
 const std = @import("std");
-
-const decode = @import("decoder.zig");
-const encode = @import("encoder.zig");
+const encoder_writer = @import("encoder_writer.zig");
+const decoder_reader = @import("decoder_reader.zig");
 
 const BenchConfig = struct {
     iterations: usize = 10,
     warmup_runs: usize = 3,
-    sizes: []const usize = &[_]usize{ 1024, 1024 * 1024, 10 * 1024 * 1024 },
+    sizes: []const usize = &[_]usize{ 1024, 1024 * 1024, 10 * 1024 * 1024, 50 * 1024 * 1024 , 100 * 1024 * 1024 },
+    writer_buffer_size: usize = 64 * 1024,
+    reader_buffer_size: usize = 64 * 1024,
+    reader_encoded_buffer_size: usize = 64 * 1024 * 12,
 };
 
 const BenchResult = struct {
@@ -17,11 +19,13 @@ const BenchResult = struct {
     avg_ns: u64,
     throughput_mbs: f64,
 
-    fn formatDuration(ns: u64, writer: anytype) !void {
+    fn formatDuration(ns: u64, writer: *std.Io.Writer) !void {
         if (ns < std.time.ns_per_ms) {
             try writer.print("{d}ns", .{ns});
+        } else if (ns < std.time.ns_per_s) {
+            try writer.print("{d:.2}ms", .{@as(f64, @floatFromInt(ns)) / @as(f64, @floatFromInt(std.time.ns_per_ms))});
         } else {
-            try writer.print("{d}ms", .{ns / std.time.ns_per_ms});
+            try writer.print("{d:.2}s", .{@as(f64, @floatFromInt(ns)) / @as(f64, @floatFromInt(std.time.ns_per_s))});
         }
     }
 };
@@ -44,36 +48,44 @@ const Benchmark = struct {
         };
     }
 
-    fn runSingleBench(self: *Benchmark, data: []const u8, comptime op: enum { Encode, Decode }) !BenchResult {
+    fn benchEncode(self: *Benchmark, data: []const u8) !BenchResult {
         var timer = try std.time.Timer.start();
-        var times = std.ArrayList(u64).init(self.allocator);
-        defer times.deinit();
-
-        // Arena for warmup runs
-        var arena = std.heap.ArenaAllocator.init(self.allocator);
+        var times: std.ArrayList(u64) = .{};
+        defer times.deinit(self.allocator);
 
         // Warmup runs
         for (0..self.config.warmup_runs) |_| {
-            if (op == .Encode) {
-                _ = try encode.BottomEncoder.encodeAlloc(data, arena.allocator());
-            } else {
-                _ = try decode.BottomDecoder.decodeAlloc(data, arena.allocator());
-            }
+            var sink_writer = std.Io.Writer.Allocating.init(self.allocator);
+            defer sink_writer.deinit();
+
+            const encoder_buffer = try self.allocator.alloc(u8, self.config.writer_buffer_size);
+            defer self.allocator.free(encoder_buffer);
+
+            var encoder = encoder_writer.BottomWriter.init(encoder_buffer, &sink_writer.writer);
+
+            try encoder.writer.writeAll(data);
+            try encoder.writer.flush();
         }
-        arena.deinit();
-        var decoded_data: []const u8 = undefined;
+
+        var output_size: usize = 0;
+
         // Actual benchmark runs
         for (0..self.config.iterations) |_| {
-            const buffer = try self.allocator.alloc(u8, data.len * if (op == .Encode) encode.BottomEncoder.max_expansion_per_byte else 1);
-            defer self.allocator.free(buffer);
+            var sink_writer = std.Io.Writer.Allocating.init(self.allocator);
+            defer sink_writer.deinit();
+
+            const encoder_buffer = try self.allocator.alloc(u8, self.config.writer_buffer_size);
+            defer self.allocator.free(encoder_buffer);
+
+            var encoder = encoder_writer.BottomWriter.init(encoder_buffer, &sink_writer.writer);
 
             timer.reset();
-            if (op == .Encode) {
-                decoded_data = encode.BottomEncoder.encode(data, buffer);
-            } else {
-                decoded_data = try decode.BottomDecoder.decode(data, buffer);
-            }
-            try times.append(timer.lap()); // Store raw nanoseconds
+            try encoder.writer.writeAll(data);
+            try encoder.writer.flush();
+            const elapsed = timer.read();
+
+            output_size = sink_writer.written().len;
+            try times.append(self.allocator, elapsed);
         }
 
         // Calculate statistics
@@ -87,18 +99,79 @@ const Benchmark = struct {
             sum += t;
         }
 
-        const output_size = if (op == .Encode)
-            data.len * encode.BottomEncoder.max_expansion_per_byte
-        else
-            decoded_data.len;
-
-        const input_size = if (op == .Encode) data.len else output_size;
-
         const avg = sum / times.items.len;
-        const throughput = @as(f64, @floatFromInt(input_size)) / (@as(f64, @floatFromInt(avg)) / 1_000_000_000.0) / 1024.0 / 1024.0;
+        const throughput = @as(f64, @floatFromInt(output_size)) / (@as(f64, @floatFromInt(avg)) / 1_000_000_000.0) / 1024.0 / 1024.0;
 
         return BenchResult{
-            .input_size = input_size,
+            .input_size = data.len,
+            .output_size = output_size,
+            .min_ns = min,
+            .max_ns = max,
+            .avg_ns = avg,
+            .throughput_mbs = throughput,
+        };
+    }
+
+    fn benchDecode(self: *Benchmark, encoded_data: []const u8) !BenchResult {
+        var timer = try std.time.Timer.start();
+        var times: std.ArrayList(u64) = .{};
+        defer times.deinit(self.allocator);
+
+        // Warmup runs
+        for (0..self.config.warmup_runs) |_| {
+            var source_reader: std.Io.Reader = .fixed(encoded_data);
+
+            const decode_buffer = try self.allocator.alloc(u8, self.config.reader_buffer_size);
+            defer self.allocator.free(decode_buffer);
+
+            const encoded_buffer = try self.allocator.alloc(u8, self.config.reader_encoded_buffer_size);
+            defer self.allocator.free(encoded_buffer);
+
+            var decoder = decoder_reader.BottomReader.init(decode_buffer, encoded_buffer, &source_reader);
+
+            _ = try decoder.reader.allocRemaining(self.allocator, .unlimited);
+        }
+
+        var output_size: usize = 0;
+
+        // Actual benchmark runs
+        for (0..self.config.iterations) |_| {
+            var source_reader: std.Io.Reader = .fixed(encoded_data);
+
+            const decode_buffer = try self.allocator.alloc(u8, self.config.reader_buffer_size);
+            defer self.allocator.free(decode_buffer);
+
+            const encoded_buffer = try self.allocator.alloc(u8, self.config.reader_encoded_buffer_size);
+            defer self.allocator.free(encoded_buffer);
+
+            var decoder = decoder_reader.BottomReader.init(decode_buffer, encoded_buffer, &source_reader);
+
+            timer.reset();
+            const result = try decoder.reader.allocRemaining(self.allocator, .unlimited);
+            const elapsed = timer.read();
+
+            output_size = result.len;
+            self.allocator.free(result);
+
+            try times.append(self.allocator, elapsed);
+        }
+
+        // Calculate statistics
+        var min: u64 = std.math.maxInt(u64);
+        var max: u64 = 0;
+        var sum: u64 = 0;
+
+        for (times.items) |t| {
+            min = @min(min, t);
+            max = @max(max, t);
+            sum += t;
+        }
+
+        const avg = sum / times.items.len;
+        const throughput = @as(f64, @floatFromInt(encoded_data.len)) / (@as(f64, @floatFromInt(avg)) / 1_000_000_000.0) / 1024.0 / 1024.0;
+
+        return BenchResult{
+            .input_size = encoded_data.len,
             .output_size = output_size,
             .min_ns = min,
             .max_ns = max,
@@ -114,35 +187,60 @@ pub fn main() !void {
     const config = BenchConfig{};
     var benchmark = Benchmark.init(allocator, config);
 
-    const stdout = std.io.getStdOut().writer();
-    try stdout.print("\nRunning Bottom encoding/decoding benchmarks...\n", .{});
+    const stdout_file = std.fs.File.stdout();
+    var stdout_file_writer = stdout_file.writer(&.{});
+    var stdout = &stdout_file_writer.interface;
+    try stdout.print("\nRunning Bottom encoding/decoding benchmarks (streaming)...\n", .{});
+    try stdout.print("Writer buffer: {d} bytes, Reader buffer: {d} bytes, Encoded buffer: {d} bytes\n", .{
+        config.writer_buffer_size,
+        config.reader_buffer_size,
+        config.reader_encoded_buffer_size,
+    });
 
     for (config.sizes) |size| {
         const data = try allocator.alloc(u8, size);
         defer allocator.free(data);
         benchmark.rng.random().bytes(data);
 
-        try stdout.print("\nBenchmarking size: {d} bytes\n", .{size});
+        try stdout.print("\n--- Benchmarking size: {d} bytes ---\n", .{size});
 
-        const encode_result = try benchmark.runSingleBench(data, .Encode);
+        // Benchmark encoding
+        const encode_result = try benchmark.benchEncode(data);
         try stdout.print("Encode: min=", .{});
         try BenchResult.formatDuration(encode_result.min_ns, stdout);
         try stdout.print(" max=", .{});
         try BenchResult.formatDuration(encode_result.max_ns, stdout);
         try stdout.print(" avg=", .{});
         try BenchResult.formatDuration(encode_result.avg_ns, stdout);
-        try stdout.print(" throughput={d:.2}MB/s\n", .{encode_result.throughput_mbs});
+        try stdout.print(" throughput={d:.2}MB/s (output: {d} bytes)\n", .{ encode_result.throughput_mbs, encode_result.output_size });
 
-        const encoded = try encode.BottomEncoder.encodeAlloc(data, allocator);
-        defer encode.BottomEncoder.encodeDealloc(allocator, encoded);
+        // Create encoded data for decoding benchmark
+        var sink_writer = std.Io.Writer.Allocating.init(allocator);
+        defer sink_writer.deinit();
 
-        const decode_result = try benchmark.runSingleBench(encoded, .Decode);
+        const encoder_buffer = try allocator.alloc(u8, config.writer_buffer_size);
+        defer allocator.free(encoder_buffer);
+
+        var encoder = encoder_writer.BottomWriter.init(encoder_buffer, &sink_writer.writer);
+        try encoder.writer.writeAll(data);
+        try encoder.writer.flush();
+
+        const encoded = sink_writer.written();
+
+        // Benchmark decoding
+        const decode_result = try benchmark.benchDecode(encoded);
         try stdout.print("Decode: min=", .{});
         try BenchResult.formatDuration(decode_result.min_ns, stdout);
         try stdout.print(" max=", .{});
         try BenchResult.formatDuration(decode_result.max_ns, stdout);
         try stdout.print(" avg=", .{});
         try BenchResult.formatDuration(decode_result.avg_ns, stdout);
-        try stdout.print(" throughput={d:.2}MB/s\n", .{decode_result.throughput_mbs});
+        try stdout.print(" throughput={d:.2}MB/s (output: {d} bytes)\n", .{ decode_result.throughput_mbs, decode_result.output_size });
+
+        // Calculate compression ratio
+        const ratio = @as(f64, @floatFromInt(encode_result.output_size)) / @as(f64, @floatFromInt(encode_result.input_size));
+        try stdout.print("Compression ratio: {d:.2}x (encoded size / original size)\n", .{ratio});
     }
+
+    try stdout.print("\nBenchmark complete!\n", .{});
 }

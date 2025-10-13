@@ -1,7 +1,7 @@
-pub const encoder = @import("src/encoder.zig").BottomEncoder;
-pub const decoder = @import("src/decoder.zig").BottomDecoder;
+pub const BottomWriter = @import("src/encoder_writer.zig").BottomWriter;
+pub const BottomReader = @import("src/decoder_reader.zig").BottomReader;
 
 comptime {
-    _ = encoder;
-    _ = decoder;
+    _ = BottomWriter;
+    _ = BottomReader;
 }
