@@ -3,29 +3,48 @@
 //! Provides a WebAssembly interface for the bottom-zig encoder/decoder library.
 //! Enables web applications to encode/decode bottom text through JavaScript.
 //!
-//! ## Memory Management Contract
-//! - All memory is allocated from std.heap.wasm_allocator (JavaScript-managed)
-//! - Encoded/decoded results are owned by the WASM module until JavaScript copies them
-//! - JavaScript must call setResult() to receive ownership of output data
-//! - After setResult(), JavaScript is responsible for the memory lifetime
+//! ## Memory Management Strategy
+//! Static buffers instead of dynamic allocation because:
+//! - Avoids allocation failures in resource-constrained WASM environment
+//! - Eliminates GC pressure and repeated allocation overhead
+//! - Matches CLI implementation for consistency
+//! - Prevents expensive module restart cycles
 //!
-//! ## Error Handling
-//! - Errors are reported via appendException() and trigger restart()
-//! - RestartState enum communicates error type back to JavaScript
-//! - Panics trigger trap() which stops WASM execution
+//! ## Error Handling Philosophy
+//! Errors logged via appendException() because:
+//! - Provides detailed error context to JavaScript UI
+//! - RestartState enum allows graceful error recovery
+//! - Panics reserved for unrecoverable state corruption only
 
 const std = @import("std");
 const bottom = @import("bottom");
 
-/// Global allocator for WASM memory management. Initialized in _start().
-/// Uses std.heap.wasm_allocator which interfaces with JavaScript's WebAssembly.Memory.
+/// WASM allocator for dynamic data that exceeds buffer capacity
 var globalAllocator: std.mem.Allocator = undefined;
 
 const scoped = std.log.scoped(.WasmBottomProgram);
 
-// Buffer sizes for WASM encoding/decoding operations.
+/// Buffer sizes match CLI implementation for consistent behavior
 const buffer_size = 128 * 1024;
 const max_expansion_per_byte = 48;
+
+/// Static buffers reduce allocation overhead and prevent restart cycles.
+/// For data > 128KB, JavaScript must chunk it and call processChunk() repeatedly.
+var decode_buffer: [buffer_size]u8 = undefined;
+var encoded_buffer: [max_expansion_per_byte * buffer_size]u8 = undefined;
+var output_buffer: [buffer_size]u8 = undefined;
+var input_buffer: [buffer_size]u8 = undefined;
+var encode_buffer: [max_expansion_per_byte * buffer_size]u8 = undefined;
+/// Shared input buffer for JavaScript to write each chunk into
+var input_text_buffer: [buffer_size]u8 = undefined;
+
+/// State for multi-chunk processing
+const ProcessingState = struct {
+    output_allocating: std.Io.Writer.Allocating = undefined,
+    initialized: bool = false,
+};
+var decode_state: ProcessingState = .{};
+var encode_state: ProcessingState = .{};
 
 /// Error states for JavaScript interaction
 const RestartState = enum(u32) {
@@ -43,113 +62,163 @@ export fn _start() void {
     globalAllocator = std.heap.wasm_allocator;
 }
 
-/// # Bottom Text Decoder
-/// Decodes bottom-encoded text into regular UTF-8
-export fn decode() void {
+/// Initialize decoder for chunked processing. Must call before decodeChunk().
+export fn decodeStart() void {
     current_state = .regress_failed;
-    const len = getTextLen();
-    if (len > std.math.maxInt(usize)) {
-        scoped.err("Input Too Long", .{});
+    if (decode_state.initialized) {
+        decode_state.output_allocating.deinit();
+    }
+    decode_state.output_allocating = std.Io.Writer.Allocating.init(globalAllocator);
+    decode_state.initialized = true;
+}
+
+/// Process a chunk of bottom-encoded data. Call decodeStart() first.
+/// Returns 0 on success, error code otherwise.
+export fn decodeChunk(chunk_len: u32) u32 {
+    current_state = .regress_failed;
+    if (!decode_state.initialized) {
+        scoped.err("Must call decodeStart() before decodeChunk()", .{});
+        return @intFromEnum(current_state);
+    }
+    if (chunk_len > buffer_size) {
+        scoped.err("Chunk too large (max {d} bytes)", .{buffer_size});
+        return @intFromEnum(current_state);
+    }
+
+    const text = input_text_buffer[0..chunk_len];
+    var input_reader: std.Io.Reader = .fixed(text);
+    var decoder = bottom.BottomReader.init(&decode_buffer, &encoded_buffer, &input_reader);
+
+    _ = decoder.reader.streamRemaining(&decode_state.output_allocating.writer) catch |err| {
+        scoped.err("Failed to decode chunk: {any}", .{err});
+        return @intFromEnum(current_state);
+    };
+
+    return 0;
+}
+
+/// Finalize decoding and return result. Cleans up state.
+export fn decodeFinish() void {
+    if (!decode_state.initialized) {
+        scoped.err("Must call decodeStart() before decodeFinish()", .{});
         return;
     }
-    const text = getText()[0..len];
-    
-    const decode_buffer = globalAllocator.alloc(u8, buffer_size) catch |err| {
-        scoped.err("Failed to allocate decode buffer: {any}", .{err});
-        restart(@intFromEnum(current_state));
-        return;
-    };
-    defer globalAllocator.free(decode_buffer);
-    
-    const encoded_buffer = globalAllocator.alloc(u8, max_expansion_per_byte * buffer_size) catch |err| {
-        scoped.err("Failed to allocate encoded buffer: {any}", .{err});
-        restart(@intFromEnum(current_state));
-        return;
-    };
-    defer globalAllocator.free(encoded_buffer);
-    
-    const output_buffer = globalAllocator.alloc(u8, buffer_size) catch |err| {
-        scoped.err("Failed to allocate output buffer: {any}", .{err});
-        restart(@intFromEnum(current_state));
-        return;
-    };
-    defer globalAllocator.free(output_buffer);
-    
-    // Create input reader from text
-    var input_reader: std.Io.Reader = .fixed(text);
-    
-    // Create decoder
-    var decoder = bottom.BottomReader.init(decode_buffer, encoded_buffer, &input_reader);
-    
-    // Create output writer (allocating)
-    var output_allocating = std.Io.Writer.Allocating.init(globalAllocator);
-    defer output_allocating.deinit();
-    
-    // Stream all data from decoder to output
-    _ = decoder.reader.streamRemaining(&output_allocating.writer) catch |err| {
-        scoped.err("Failed to decode: {any}", .{err});
-        restart(@intFromEnum(current_state));
-        return;
-    };
-    
-    const result = output_allocating.writer.buffered();
+    defer {
+        decode_state.output_allocating.deinit();
+        decode_state.initialized = false;
+    }
+
+    const result = decode_state.output_allocating.writer.buffered();
     setResult(result.ptr, @truncate(result.len));
     hideException();
 }
 
-/// # Text Encoder 
-/// Encodes regular text into bottom encoding
+/// Single-shot decode for backwards compatibility with small inputs
+export fn decode() void {
+    current_state = .regress_failed;
+    const len = getTextLen();
+    if (len > buffer_size) {
+        scoped.err("Input too large ({d} bytes). Use chunked API: decodeStart/Chunk/Finish", .{len});
+        return;
+    }
+
+    decodeStart();
+    const result = decodeChunk(len);
+    if (result != 0) {
+        if (decode_state.initialized) {
+            decode_state.output_allocating.deinit();
+            decode_state.initialized = false;
+        }
+        return;
+    }
+    decodeFinish();
+}
+
+/// Initialize encoder for chunked processing. Must call before encodeChunk().
+export fn encodeStart() void {
+    current_state = .bottomify_failed;
+    if (encode_state.initialized) {
+        encode_state.output_allocating.deinit();
+    }
+    encode_state.output_allocating = std.Io.Writer.Allocating.init(globalAllocator);
+    encode_state.initialized = true;
+}
+
+/// Process a chunk of plain text data. Call encodeStart() first.
+/// Returns 0 on success, error code otherwise.
+export fn encodeChunk(chunk_len: u32) u32 {
+    current_state = .bottomify_failed;
+    if (!encode_state.initialized) {
+        scoped.err("Must call encodeStart() before encodeChunk()", .{});
+        return @intFromEnum(current_state);
+    }
+    if (chunk_len > buffer_size) {
+        scoped.err("Chunk too large (max {d} bytes)", .{buffer_size});
+        return @intFromEnum(current_state);
+    }
+
+    const text = input_text_buffer[0..chunk_len];
+    var input_reader: std.Io.Reader = .fixed(text);
+    var encoder = bottom.BottomWriter.init(&encode_buffer, &encode_state.output_allocating.writer);
+
+    _ = input_reader.streamRemaining(&encoder.writer) catch |err| {
+        scoped.err("Failed to encode chunk: {any}", .{err});
+        return @intFromEnum(current_state);
+    };
+
+    encoder.writer.flush() catch |err| {
+        scoped.err("Failed to flush encoder: {any}", .{err});
+        return @intFromEnum(current_state);
+    };
+
+    return 0;
+}
+
+/// Finalize encoding and return result. Cleans up state.
+export fn encodeFinish() void {
+    if (!encode_state.initialized) {
+        scoped.err("Must call encodeStart() before encodeFinish()", .{});
+        return;
+    }
+    defer {
+        encode_state.output_allocating.deinit();
+        encode_state.initialized = false;
+    }
+
+    const result = encode_state.output_allocating.writer.buffered();
+    setResult(result.ptr, @truncate(result.len));
+    hideException();
+}
+
+/// Single-shot encode for backwards compatibility with small inputs
 export fn encode() void {
     current_state = .bottomify_failed;
     const len = getTextLen();
-    if (len > std.math.maxInt(usize)) {
-        scoped.err("Input Too Long", .{});
-        restart(@intFromEnum(current_state));
+    if (len > buffer_size) {
+        scoped.err("Input too large ({d} bytes). Use chunked API: encodeStart/Chunk/Finish", .{len});
         return;
     }
-    const text = getText()[0..len];
-    
-    const input_buffer = globalAllocator.alloc(u8, buffer_size) catch |err| {
-        scoped.err("Failed to allocate input buffer: {any}", .{err});
-        restart(@intFromEnum(current_state));
+
+    encodeStart();
+    const result = encodeChunk(len);
+    if (result != 0) {
+        if (encode_state.initialized) {
+            encode_state.output_allocating.deinit();
+            encode_state.initialized = false;
+        }
         return;
-    };
-    defer globalAllocator.free(input_buffer);
-    
-    const encode_buffer = globalAllocator.alloc(u8, max_expansion_per_byte * buffer_size) catch |err| {
-        scoped.err("Failed to allocate encode buffer: {any}", .{err});
-        restart(@intFromEnum(current_state));
-        return;
-    };
-    defer globalAllocator.free(encode_buffer);
-    
-    // Create input reader from text
-    var input_reader: std.Io.Reader = .fixed(text);
-    
-    // Create output writer (allocating)
-    var output_allocating = std.Io.Writer.Allocating.init(globalAllocator);
-    defer output_allocating.deinit();
-    
-    // Create encoder
-    var encoder = bottom.BottomWriter.init(encode_buffer, &output_allocating.writer);
-    
-    // Stream all data from input to encoder
-    _ = input_reader.streamRemaining(&encoder.writer) catch |err| {
-        scoped.err("Failed to read input: {any}", .{err});
-        restart(@intFromEnum(current_state));
-        return;
-    };
-    
-    // Flush encoder
-    encoder.writer.flush() catch |err| {
-        scoped.err("Failed to flush encoder: {any}", .{err});
-        restart(@intFromEnum(current_state));
-        return;
-    };
-    
-    const result = output_allocating.writer.buffered();
-    setResult(result.ptr, @truncate(result.len));
-    hideException();
+    }
+    encodeFinish();
+}
+
+/// Get pointer to input text buffer for JavaScript to write to
+export fn getInputBuffer() [*]u8 {
+    return &input_text_buffer;
+}
+
+/// Get the maximum size of the input buffer
+export fn getInputBufferSize() u32 {
+    return buffer_size;
 }
 
 /// External JavaScript interface functions (implemented in JS, called from WASM)
@@ -158,7 +227,7 @@ export fn encode() void {
 /// appendResult: Append additional data to result (for streaming)
 /// appendException: Report error message to JavaScript UI
 /// hideException: Clear error display
-/// getText: Get pointer to input text from JavaScript
+/// getText: Get pointer to input text from JavaScript (deprecated, use getInputBuffer)
 /// getTextLen: Get length of input text from JavaScript
 /// restart: Signal error state to JavaScript (triggers UI update)
 /// logus: Console logging from WASM to JavaScript

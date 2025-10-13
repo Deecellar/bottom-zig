@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-
-<head>
+  <head>
     <meta charset="UTF-8">
     <meta name="description" content="An example of the library bottom zig">
     <meta name="keywords" content="library, bottom zig, zig library">
@@ -12,66 +11,71 @@
     <!--- We preload our wasm-->
     <link rel="preload" href="wasm/bottom-zig.wasm">
     <link rel="stylesheet" href="css/output.css">
-</head>
-
-<body class="dark:bg-gray-700 bg-gray-50 dark:text-gray-200">
+  </head>
+  <body class="dark:bg-gray-700 bg-gray-50 dark:text-gray-200">
     <div class="container mx-auto">
-        <div class="flex flex-col items-center">
-            <div class="flex-1">
-                <h1 class="text-center text-3xl font-bold ">Example of bottom-zig online</h1>
-                <h2 class="text-center text-xl">
-                    This is a simple example on the bottom-zig library.
-                </h2>
-            </div>
-            <!-- We make a form with 2 text boxes and a button in between -->
-            <div class="flex-1">
-                <div class="flex flex-col items-center">
-                    <div class="flex-1 align-middle justify-center">
-                        <!-- Input box for encoded/decoded text-->
-                        <textarea type="text" required
-                            class="border border-gray-400  p-2 w-full m-2 dark:border-blue-500 dark:bg-gray-600 dark:text-gray-300"
-                            id="text" placeholder="Enter text here"></textarea>
-                        <!-- Buttons for Bottomify, regress and swap result and input boxes-->
-
-                        <div class="flex flex-row items-stretch ml-4 ">
-                            <button class="border border-gray-400 p-2 m-2 w-32 text-md  dark:border-blue-500"
-                                id="bottomify">Bottomify</button>
-                            <button class="border border-gray-400 p-2 m-2 w-32 text-md dark:border-blue-500"
-                                id="regress">Regress</button>
-                            <button class="border border-gray-400 p-2 m-2 w-32 text-md max-w-full  dark:border-blue-500"
-                                id="swap">Swap</button>
-                        </div>
-
-                        <!-- Result box for encoded/decoded text-->
-                        <textarea type="text"
-                            class="border border-gray-400 m-3 dark:border-blue-500 dark:bg-slate-600 dark:text-gray-300 p-2 w-full"
-                            id="result" placeholder="Result" disabled></textarea>
-
-                    </div>
-                </div>
-            </div>
+      <div class="flex flex-col items-center">
+        <div class="flex-1">
+          <h1 class="text-center text-3xl font-bold ">Example of bottom-zig online</h1>
+          <h2 class="text-center text-xl">
+            This is a simple example on the bottom-zig library.
+          </h2>
         </div>
-        <!-- Just a normal alert notification when things go wrong-->
-        <div class="flex flex-col items-center">
-            <div class="flex-1">
-                <div id="alert" aria-live="assertive">
-                    <div class="bg-red-500 dark:bg-red-800 text-white dark:text-graw-100 font-bold p-2 m-2 rounded-lg">
-                        <p class="text-center">Something went wrong!</p>
-                        <p class="sr-only">You have written something incorrectly in the input box with the following
+        <!-- We make a form with 2 text boxes and a button in between -->
+        <div class="flex-1">
+          <div class="flex flex-col items-center">
+            <div class="flex-1 align-middle justify-center">
+              <!-- Input box for encoded/decoded text-->
+              <textarea type="text" required class="border border-gray-400  p-2 w-full m-2 dark:border-blue-500 dark:bg-gray-600 dark:text-gray-300" id="text" placeholder="Enter text here"></textarea>
+              <!-- Buttons for Bottomify, regress and swap result and input boxes-->
+              <div class="flex flex-row items-stretch ml-4 ">
+                <button class="border border-gray-400 p-2 m-2 w-32 text-md  dark:border-blue-500" id="bottomify">Bottomify</button>
+                <button class="border border-gray-400 p-2 m-2 w-32 text-md dark:border-blue-500" id="regress">Regress</button>
+                <button class="border border-gray-400 p-2 m-2 w-32 text-md max-w-full  dark:border-blue-500" id="swap">Swap</button>
+              </div>
+              <!-- Result box for encoded/decoded text-->
+              <textarea type="text" class="border border-gray-400 m-3 dark:border-blue-500 dark:bg-slate-600 dark:text-gray-300 p-2 w-full" id="result" placeholder="Result" disabled></textarea>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Progress indicator for large file processing -->
+      <div class="flex flex-col items-center">
+        <div class="flex-1 w-full max-w-2xl">
+          <div id="progress" class="hidden">
+            <div class="bg-blue-500 dark:bg-blue-800 text-white font-bold p-2 m-2 rounded-lg">
+              <p class="text-center" id="progress-text">Processing...</p>
+              <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 mt-2">
+                <div id="progress-bar" class="bg-blue-600 h-2.5 rounded-full" style="width: 0%"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Just a normal alert notification when things go wrong-->
+      <div class="flex flex-col items-center">
+        <div class="flex-1">
+          <div id="alert" aria-live="assertive">
+            <div class="bg-red-500 dark:bg-red-800 text-white dark:text-graw-100 font-bold p-2 m-2 rounded-lg">
+              <p class="text-center">Something went wrong!</p>
+              <p class="sr-only">You have written something incorrectly in the input box with the following
                             message</p>
-                        <noscript>This page does not work without wasm or javascript activated</noscript>
-                        <div id="extra">
-                        </div>
-                    </div>
-                </div>
+              <noscript>This page does not work without wasm or javascript activated</noscript>
+              <div id="extra">
+              </div>
             </div>
+          </div>
         </div>
+      </div>
     </div>
-</body>
-<script>
+  </body>
+  <script>
     const alert = document.getElementById("alert");
     alert.classList.add("hidden");
     const extra = document.getElementById("extra");
+    const progress = document.getElementById("progress");
+    const progressBar = document.getElementById("progress-bar");
+    const progressText = document.getElementById("progress-text");
     // We hide our alert box at the beginning
     // We define the buttons and the input boxes
     const text = document.getElementById("text");
@@ -95,32 +99,97 @@
             var obj = null;
             var response = await fetch("wasm/bottom-zig.wasm");
             var wasm = await response.arrayBuffer();
+            // Reuse TextDecoder for better performance
+            const utf8Decoder = new TextDecoder();
             function readString(addr, len) {
-                let utf8Decoder = new TextDecoder();
                 let view = new Uint8Array(obj.instance.exports.memory.buffer);
-
                 return utf8Decoder.decode(view.slice(addr, addr + len));
             }
-            function startWasm() {
-                 
+            // Reuse TextEncoder for better performance
+            const utf8Encoder = new TextEncoder();
 
+            function startWasm() {
                 const {
                     encode,
                     decode,
-                    _start
+                    encodeStart,
+                    encodeChunk,
+                    encodeFinish,
+                    decodeStart,
+                    decodeChunk,
+                    decodeFinish,
+                    _start,
+                    getInputBuffer,
+                    getInputBufferSize
                 } = obj.instance.exports;
                 _start();
 
+                // Get the input buffer location once
+                const inputBufferPtr = getInputBuffer();
+                const inputBufferSize = getInputBufferSize();
+
+                /// Process input in chunks because large data doesn't fit in single buffer
+                function processChunked(startFn, chunkFn, finishFn) {
+                    const inputText = text.value;
+                    const encoded = utf8Encoder.encode(inputText);
+
+                    // Use single-shot API for small inputs to avoid overhead
+                    if (encoded.length <= inputBufferSize) {
+                        const view = new Uint8Array(obj.instance.exports.memory.buffer);
+                        view.set(encoded, inputBufferPtr);
+                        return startFn === encodeStart ? encode() : decode();
+                    }
+
+                    // Show progress indicator for large inputs
+                    progress.classList.remove("hidden");
+                    alert.classList.add("hidden");
+
+                    try {
+                        startFn();
+
+                        const totalChunks = Math.ceil(encoded.length / inputBufferSize);
+                        let offset = 0;
+                        let chunkIndex = 0;
+
+                        while (offset < encoded.length) {
+                            const chunkSize = Math.min(inputBufferSize, encoded.length - offset);
+                            const chunk = encoded.slice(offset, offset + chunkSize);
+
+                            const view = new Uint8Array(obj.instance.exports.memory.buffer);
+                            view.set(chunk, inputBufferPtr);
+
+                            const errorCode = chunkFn(chunkSize);
+                            if (errorCode !== 0) {
+                                alert.classList.remove("hidden");
+                                extra.innerHTML = `Processing failed at byte ${offset} (error code ${errorCode})`;
+                                progress.classList.add("hidden");
+                                return;
+                            }
+
+                            offset += chunkSize;
+                            chunkIndex++;
+
+                            // Update progress bar
+                            const percentComplete = (chunkIndex / totalChunks) * 100;
+                            progressBar.style.width = `${percentComplete}%`;
+                            progressText.textContent = `Processing chunk ${chunkIndex}/${totalChunks}...`;
+                        }
+
+                        finishFn();
+                    } finally {
+                        // Hide progress bar when done
+                        progress.classList.add("hidden");
+                        progressBar.style.width = "0%";
+                    }
+                }
 
                 // we set encode and decode to the buttons
                 bottomify.addEventListener("click", () => {
-
-                    encode();
+                    processChunked(encodeStart, encodeChunk, encodeFinish);
                 });
                 regress.addEventListener("click", () => {
-                    decode();
-                }
-                );
+                    processChunked(decodeStart, decodeChunk, decodeFinish);
+                });
                 swap.addEventListener("click", () => {
                     // We swap the input and result boxes
                     let temp = text.value;
@@ -133,8 +202,8 @@
                     memoryBase: 0,
                     tableBase: 0,
                     memory: new WebAssembly.Memory({
-                        initial: 2,
-                        maximum: 10
+                        initial: 96,
+                        maximum: 128
                     }),
                     setResult: (ptr, len) => {
                         document.getElementById("result").value = readString(ptr, len);
@@ -143,20 +212,12 @@
                         document.getElementById("result").value += readString(ptr, len);
                     },
                     getText: () => {
-                        // We get the text from the input box 
-                        let text = document.getElementById("text").value;
-                        // We convert the text to a Uint8Array
-                        let textArray = new Uint8Array(obj.instance.exports.memory.buffer);
-                        let textLen = new TextEncoder().encode(text);
-                        textArray.set(textLen);
-
-                        // We return the Uint8Array
-                        return textArray.byteOffset;
+                        // Deprecated: kept for compatibility but no longer used
+                        return 0;
                     },
                     getTextLen: () => {
                         let text = document.getElementById("text").value;
-                        let textLen = new TextEncoder().encode(text);
-
+                        let textLen = utf8Encoder.encode(text);
                         return textLen.length;
                     },
                     appendException: (ptr, len) => {
@@ -212,6 +273,5 @@
         });
 
     }
-</script>
-
+  </script>
 </html>
