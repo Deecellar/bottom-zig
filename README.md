@@ -11,9 +11,11 @@ A complete implementation of the Bottom Spec in Zig with both encoding and decod
 - C API bindings
 - Configurable allocators when targeting zig
 
+
 # Upcoming Features
 
 - Speed improvements
+- Fix Broken Regress on WASM
 
 # Build Options
 
@@ -66,7 +68,7 @@ For an example of how to use the C API, see `src/example.c`.
 
 
 # Online Demo
-Try it in WebAssembly: https://deecellar.github.io/bottom-zig/
+Try it in WebAssembly: https://deecellar.github.io/bottom-zig/ [Decoding is broken]
 
 # Binaries
 Pre-built binaries for Linux, macOS and Windows (x86_64) are available in CI artifacts.
