@@ -9,7 +9,7 @@
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
     <title>Example of bottom-zig online</title>
     <!--- We preload our wasm-->
-    <link rel="preload" href="wasm/bottom-zig.wasm">
+    <link rel="preload" href="wasm/bottom-zig.wasm" as="fetch" crossorigin>
     <link rel="stylesheet" href="css/output.css">
   </head>
   <body class="dark:bg-gray-700 bg-gray-50 dark:text-gray-200">
@@ -221,12 +221,9 @@
                         return textLen.length;
                     },
                     appendException: (ptr, len) => {
-                        let result = new Uint8Array(obj.instance.exports.memory.buffer, ptr, len);
-                        // We append the result as a new paragraph in the alert box
+                        // readString handles the memory view directly, no need for intermediate Uint8Array
                         extra.appendChild(document.createElement("p")).innerHTML = readString(ptr, len);
-                        // we show the alert box
                         alert.classList.remove("hidden");
-
                     },
                     hideException: () => {
                         alert.classList.add("hidden");
@@ -234,7 +231,6 @@
                         extra.innerHTML = "";
                     },
                     logus: (ptr, len) => {
-                        let result = new Uint8Array(obj.instance.exports.memory.buffer, ptr, len);
                         console.log(readString(ptr, len));
                     },
                     restart: (state) => {

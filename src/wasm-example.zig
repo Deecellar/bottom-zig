@@ -85,6 +85,10 @@ export fn decodeChunk(chunk_len: u32) u32 {
         return @intFromEnum(current_state);
     }
 
+    if (chunk_len == 0) {
+        return 0;
+    }
+
     const text = input_text_buffer[0..chunk_len];
     var input_reader: std.Io.Reader = .fixed(text);
     var decoder = bottom.BottomReader.init(&decode_buffer, &encoded_buffer, &input_reader);
@@ -122,6 +126,12 @@ export fn decode() void {
         return;
     }
 
+    if (len == 0) {
+        setResult("", 0);
+        hideException();
+        return;
+    }
+
     decodeStart();
     const result = decodeChunk(len);
     if (result != 0) {
@@ -155,6 +165,10 @@ export fn encodeChunk(chunk_len: u32) u32 {
     if (chunk_len > buffer_size) {
         scoped.err("Chunk too large (max {d} bytes)", .{buffer_size});
         return @intFromEnum(current_state);
+    }
+
+    if (chunk_len == 0) {
+        return 0;
     }
 
     const text = input_text_buffer[0..chunk_len];
@@ -196,6 +210,12 @@ export fn encode() void {
     const len = getTextLen();
     if (len > buffer_size) {
         scoped.err("Input too large ({d} bytes). Use chunked API: encodeStart/Chunk/Finish", .{len});
+        return;
+    }
+
+    if (len == 0) {
+        setResult("", 0);
+        hideException();
         return;
     }
 
