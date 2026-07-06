@@ -112,7 +112,6 @@ pub const BottomReader = struct {
 
         const view = view_buf[0..view_len];
         var view_pos: usize = 0;
-
         // Parse delimiter-separated sequences. Sequences are validated for length
         // (<=48 bytes) and decodability. Invalid sequences are skipped, allowing
         // the decoder to recover from garbage data.
@@ -120,16 +119,24 @@ pub const BottomReader = struct {
             if (decoded_count >= dest.len) break;
 
             const remaining_view = view[view_pos..];
-            const delim_opt = common.indexOf(remaining_view, delimiter);
+            // Find the END of the next delimiter. In valid Bottom data, the
+            // last byte `0x88` only appears as the delimiter's final byte, so
+            // SIMD-scanning for `0x88` is enough to locate the delimiter
+            // without false positives. The prefix verification in
+            // `indexOfDelimEnd` guards against garbage data.
+            const delim_end_opt = common.indexOfDelimEnd(remaining_view);
 
-            if (delim_opt) |relative_delim_pos| {
-                const sequence = remaining_view[0..relative_delim_pos];
+            if (delim_end_opt) |delim_end| {
+                // `delim_end` is the index of the delimiter's final byte.
+                // The sequence to decode ends at `delim_end - delimiter.len`.
+                const sequence_end = delim_end + 1 - delimiter.len;
+                const sequence = remaining_view[0..sequence_end];
 
                 // Validate and decode the sequence. Sequences longer than 48 bytes
                 // or containing invalid emoji combinations are silently skipped.
                 // @branchHint(.likely) optimizes for the common case of valid data.
                 if (sequence.len <= max_encoded_length) {
-                    if (common.BottomDecodeLut.decode(sequence)) |byte| {
+                    if (common.BottomDecodePerfectHash.decode(sequence)) |byte| {
                         @branchHint(.likely);
                         dest[decoded_count] = byte;
                         decoded_count += 1;
@@ -138,7 +145,7 @@ pub const BottomReader = struct {
                 // Advance past this sequence and its delimiter, regardless of
                 // whether we successfully decoded it. This allows recovery from
                 // corrupted data.
-                view_pos += relative_delim_pos + delimiter.len;
+                view_pos += delim_end + 1;
             } else {
                 // No delimiter found: the remaining data is a partial sequence
                 // that will be completed in the next read() call.

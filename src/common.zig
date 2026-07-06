@@ -128,189 +128,67 @@ pub const BottomDecodeLut = struct {
     }
 };
 
-// The DFA is a packed 2D state-transition table that fits in exactly 8 KB
-// (16 states × 256 byte values × 2 bytes per entry). It walks encoded Bottom
-// data one byte at a time, accumulating a running sum and emitting a decoded
-// byte whenever the 👉👈 delimiter's final byte is observed.
-//
-// The "comma cheat" — since the DFA loops on every `,` byte and adds 1 to
-// the running sum, we only need to teach the DFA a single `,` token. Sequences
-// like `,,` and `,,,` naturally decode to 2 and 3 without explicit entries.
-//
-// The table is generated at compile time from the Bottom emoji alphabet,
-// sharing UTF-8 prefix paths between tokens (e.g. 🫂, 💖, 🥺, 👉 all begin
-// with `f0 9f`, so their first two transitions share sub-states).
 
-pub const DfaAction = packed struct(u16) {
-    next: u6,        // Next state (supports up to 64 states)
-    is_end: u1,      // True for the final byte of the 👉👈 delimiter
-    is_invalid: u1,  // True if the byte does not continue any path
-    add: u8,         // Value to add to the running sum
-};
+pub const BottomDecodePerfectHash = struct {
+    /// Faster decoder using FNV-1a hash instead of XxHash64.
+    /// FNV-1a costs ~1.5 cycles/byte vs XxHash64's ~4 cycles/byte.
+    /// Same 512-slot open-addressing table, but the hash is 2-3x cheaper.
+    /// At load factor 0.5, average probe length is ~1.5 slots.
 
-pub const DfaTable = [16][256]DfaAction;
+    const table_size: u32 = 512;
+    const mask: u32 = table_size - 1;
 
-/// Compile-time generated DFA for decoding the Bottom emoji alphabet.
-/// Total footprint: 16 × 256 × 2 bytes = 8 KiB — fits inside the L1 cache
-/// of any modern CPU, removing all D-cache misses from the hot path.
-pub const BOTTOM_DFA: DfaTable = generateBottomDfa();
+    const Entry = struct { key: u64, value: u8 };
+    const table: [table_size]Entry = buildTable();
 
-/// Walk every token through the 2D table at compile time, creating new
-/// sub-states for prefix bytes that are not yet present. All entries default
-/// to `.is_invalid = 1` so that any byte we don't recognize resets the
-/// stream.
-fn generateBottomDfa() DfaTable {
-    @setEvalBranchQuota(100_000);
-
-    var table: DfaTable = undefined;
-
-    // 1. Initialize the entire table as invalid.
-    for (&table) |*row| {
-        for (row) |*action| {
-            action.* = .{
-                .next = 0,
-                .is_end = 0,
-                .is_invalid = 1,
-                .add = 0,
-            };
+    /// FNV-1a hash of sequence + delimiter.
+    fn hashSeq(sequence: []const u8) u64 {
+        const delimiter = BottomDecodeLut.delimiter;
+        var h: u64 = 14695981039346656037;
+        for (sequence) |b| {
+            h ^= b;
+            h *%= 1099511628211;
         }
+        for (delimiter) |b| {
+            h ^= b;
+            h *%= 1099511628211;
+        }
+        return h;
     }
 
-    var next_available_state: u6 = 1;
-
-    const wire = struct {
-        fn wire(
-            comptime bytes: []const u8,
-            value: u8,
-            comptime final_is_end: bool,
-            t: *DfaTable,
-            next_state: *u6,
-        ) void {
-            var curr: u6 = 0;
-            for (bytes, 0..) |byte, i| {
-                const is_last = (i == bytes.len - 1);
-                if (is_last) {
-                    t[curr][byte] = .{
-                        .next = 0,
-                        .is_end = if (final_is_end) 1 else 0,
-                        .is_invalid = 0,
-                        .add = value,
-                    };
-                } else {
-                    if (t[curr][byte].is_invalid == 1) {
-                        t[curr][byte] = .{
-                            .next = next_state.*,
-                            .is_end = 0,
-                            .is_invalid = 0,
-                            .add = 0,
-                        };
-                        next_state.* += 1;
-                    }
-                    curr = t[curr][byte].next;
+    fn buildTable() [table_size]Entry {
+        @setEvalBranchQuota(10_000_000);
+        var t: [table_size]Entry = @splat(.{ .key = 0, .value = 0 });
+        inline for (0..256) |i| {
+            const enc = BottomLut.lut(@intCast(i));
+            const key = hashSeq(enc[0 .. enc.len - BottomDecodeLut.delimiter.len]);
+            var idx: usize = @intCast(key & mask);
+            while (true) : (idx = (idx + 1) & mask) {
+                if (t[idx].key == 0) {
+                    t[idx] = .{ .key = key, .value = @intCast(i) };
+                    break;
                 }
             }
         }
-    }.wire;
-
-    const Token = struct { str: []const u8, val: u8 };
-    const tokens = [_]Token{
-        .{ .str = "🫂", .val = 200 },
-        .{ .str = "💖", .val = 50 },
-        .{ .str = "✨", .val = 10 },
-        .{ .str = "🥺", .val = 5 },
-        .{ .str = ",",  .val = 1 },
-        .{ .str = "❤",  .val = 0 },
-    };
-    for (tokens) |tok| {
-        wire(tok.str, tok.val, false, &table, &next_available_state);
+        var count: usize = 0;
+        for (t) |e| {
+            if (e.key != 0) count += 1;
+        }
+        if (count != 256) @compileError("table build failed");
+        return t;
     }
 
-    wire("👉👈", 0, true, &table, &next_available_state);
-
-    return table;
-}
-
-test "DFA round-trips every byte 0..255" {
-    for (0..256) |i| {
-        const byte: u8 = @intCast(i);
-        const encoded = BottomLut.lut(byte);
-
-        var state: u6 = 0;
-        var running_sum: u8 = 0;
-        var decoded: ?u8 = null;
-
-        for (encoded) |b| {
-            const action = BOTTOM_DFA[state][b];
-            if (action.is_invalid == 1) {
-                state = 0;
-                running_sum = 0;
-                continue;
-            }
-            running_sum +%= action.add;
-            state = action.next;
-            if (action.is_end == 1) {
-                decoded = running_sum;
-                running_sum = 0;
-            }
-        }
-
-        try std.testing.expect(decoded != null);
-        try std.testing.expectEqual(byte, decoded.?);
-    }
-}
-
-test "DFA emits correct sums for repeated commas" {
-    var state: u6 = 0;
-    var running_sum: u8 = 0;
-
-    const delimiter = "👉👈";
-    const input = ",,,,," ++ delimiter; // 5 commas → running_sum = 5
-
-    var emitted: ?u8 = null;
-    for (input) |b| {
-        const action = BOTTOM_DFA[state][b];
-        if (action.is_invalid == 1) {
-            state = 0;
-            running_sum = 0;
-            continue;
-        }
-        running_sum +%= action.add;
-        state = action.next;
-        if (action.is_end == 1) {
-            emitted = running_sum;
-            running_sum = 0;
+    pub inline fn decode(sequence: []const u8) ?u8 {
+        if (sequence.len + BottomDecodeLut.delimiter.len > 40) return null;
+        const key = hashSeq(sequence);
+        var i: usize = @intCast(key & mask);
+        while (true) : (i = (i + 1) & mask) {
+            const e = table[i];
+            if (e.key == 0) return null;
+            if (e.key == key) return e.value;
         }
     }
-
-    try std.testing.expectEqual(@as(?u8, 5), emitted);
-}
-
-test "DFA rejects invalid bytes and recovers" {
-    var state: u6 = 0;
-    var running_sum: u8 = 0;
-
-    const valid = "💖🥺,👉👈"; // 50 + 5 + 1 = 56 = '8'
-    const garbage = "ZZ";      // not in alphabet; should reset the DFA
-    const input = garbage ++ valid;
-
-    var emitted: ?u8 = null;
-    for (input) |b| {
-        const action = BOTTOM_DFA[state][b];
-        if (action.is_invalid == 1) {
-            state = 0;
-            running_sum = 0;
-            continue;
-        }
-        running_sum +%= action.add;
-        state = action.next;
-        if (action.is_end == 1) {
-            emitted = running_sum;
-            running_sum = 0;
-        }
-    }
-
-    try std.testing.expectEqual(@as(?u8, '8'), emitted);
-}
+};
 
 test "encode and decode round trip" {
     for (0..256) |i| {
@@ -379,6 +257,73 @@ pub fn indexOf(haystack: []const u8, needle: []const u8) ?usize {
         }
     }
     return null;
+}
+
+/// Find the end position of the first `👉👈` delimiter in `haystack`.
+/// Returns the index of the LAST byte (`0x88`) of the delimiter, or null
+/// if no delimiter is found. The full delimiter is `f0 9f 91 89 f0 9f 91 88`
+/// (8 bytes), but in the Bottom alphabet the only `0x88` byte in valid data
+/// is the final byte of this delimiter — so SIMD-scanning for `0x88` alone
+/// gives delimiter-end positions directly.
+///
+/// For invalid (non-Bottom) input, we must verify each match by checking
+/// the 7-byte prefix. This is fast because the match is rare (~1/24 bytes)
+/// and the prefix check is 7 contiguous loads.
+pub fn indexOfDelimEnd(haystack: []const u8) ?usize {
+    const n = haystack.len;
+    if (n < 8) {
+        // Scalar scan for short inputs.
+        var i: usize = 0;
+        while (i < n) : (i += 1) {
+            if (haystack[i] != 0x88) continue;
+            if (i < 7) return null;
+            if (std.mem.eql(u8, haystack[i - 7 ..][0..7], "\xf0\x9f\x91\x89\xf0\x9f\x91")) {
+                return i;
+            }
+        }
+        return null;
+    }
+
+    const block_size = std.simd.suggestVectorLength(u8).?;
+    const Block = @Vector(block_size, u8);
+    const target: Block = @splat(0x88);
+    const prefix = "\xf0\x9f\x91\x89\xf0\x9f\x91";
+
+    var i: usize = 0;
+    while (i + block_size <= n) : (i += block_size) {
+        const chunk: Block = haystack[i..][0..block_size].*;
+        const eq = chunk == target;
+        if (@reduce(.Or, eq) == false) continue;
+        // Bitmask of matches: `@Vector(N, bool)` is N bits, bitcast to a
+        // single integer of size N. For 32-byte chunks (the common AVX2
+        // case), this is a single u32.
+        const Mask = @Int(.unsigned, block_size);
+        var remaining: Mask = @bitCast(eq);
+        while (remaining != 0) {
+            const bitpos: usize = @ctz(remaining);
+            remaining &= remaining - 1; // clear the lowest set bit
+            const pos = i + bitpos;
+            if (pos < 7) continue;
+            const candidate = haystack[pos - 7 ..][0..7];
+            if (std.mem.eql(u8, candidate, prefix)) {
+                return pos;
+            }
+        }
+    }
+    // Scalar tail for the final partial chunk (less than block_size bytes).
+    while (i < n) : (i += 1) {
+        if (haystack[i] != 0x88) continue;
+        if (i < 7) continue;
+        if (std.mem.eql(u8, haystack[i - 7 ..][0..7], prefix)) return i;
+    }
+    return null;
+}
+
+test "indexOfDelimEnd" {
+    const result = indexOfDelimEnd("💖💖,,,,👉👈💖💖,👉👈");
+    try std.testing.expectEqual(@as(usize, 19), result.?);
+    try std.testing.expectEqual(@as(?usize, null), indexOfDelimEnd(""));
+    try std.testing.expectEqual(@as(?usize, null), indexOfDelimEnd("no delimiter here"));
 }
 
 /// Find two rarest characters in needle for SIMD search heuristic.
