@@ -5,6 +5,7 @@
 //! timing statistics and throughput measurements.
 
 const std = @import("std");
+const Io = std.Io;
 const encoder_writer = @import("encoder_writer.zig");
 const decoder_reader = @import("decoder_reader.zig");
 
@@ -53,24 +54,22 @@ const BenchResult = struct {
 const Benchmark = struct {
     config: BenchConfig,
     allocator: std.mem.Allocator,
+    io: Io,
     rng: std.Random.DefaultPrng,
-
-    pub fn init(allocator: std.mem.Allocator, config: BenchConfig) Benchmark {
-        var buffer: [8]u8 = undefined;
-        const random_seed: u64 = seed: {
-            std.posix.getrandom(&buffer) catch break :seed @bitCast(std.time.microTimestamp());
-            break :seed @bitCast(buffer);
-        };
+    pub fn init(allocator: std.mem.Allocator, io: Io, config: BenchConfig) Benchmark {
+        var seed_buf: [8]u8 = undefined;
+        std.Io.random(io, &seed_buf);
+        const random_seed: u64 = @bitCast(seed_buf);
         return .{
             .config = config,
             .allocator = allocator,
+            .io = io,
             .rng = std.Random.DefaultPrng.init(random_seed),
         };
     }
 
     fn benchEncode(self: *Benchmark, data: []const u8) !BenchResult {
-        var timer = try std.time.Timer.start();
-        var times: std.ArrayList(u64) = .{};
+        var times: std.ArrayList(u64) = .empty;
         defer times.deinit(self.allocator);
 
         // Warmup runs
@@ -99,10 +98,10 @@ const Benchmark = struct {
 
             var encoder = encoder_writer.BottomWriter.init(encoder_buffer, &sink_writer.writer);
 
-            timer.reset();
+            const start_ts = Io.Clock.Timestamp.now(self.io, .awake);
             try encoder.writer.writeAll(data);
             try encoder.writer.flush();
-            const elapsed = timer.read();
+            const elapsed: u64 = @intCast(start_ts.untilNow(self.io).raw.nanoseconds);
 
             output_size = sink_writer.written().len;
             try times.append(self.allocator, elapsed);
@@ -133,8 +132,7 @@ const Benchmark = struct {
     }
 
     fn benchDecode(self: *Benchmark, encoded_data: []const u8) !BenchResult {
-        var timer = try std.time.Timer.start();
-        var times: std.ArrayList(u64) = .{};
+        var times: std.ArrayList(u64) = .empty;
         defer times.deinit(self.allocator);
 
         // Warmup runs
@@ -166,10 +164,9 @@ const Benchmark = struct {
 
             var decoder = decoder_reader.BottomReader.init(decode_buffer, encoded_buffer, &source_reader);
 
-            timer.reset();
+            const start_ts = Io.Clock.Timestamp.now(self.io, .awake);
             const result = try decoder.reader.allocRemaining(self.allocator, .unlimited);
-            const elapsed = timer.read();
-
+            const elapsed: u64 = @intCast(start_ts.untilNow(self.io).raw.nanoseconds);
             output_size = result.len;
             self.allocator.free(result);
 
@@ -201,15 +198,14 @@ const Benchmark = struct {
     }
 };
 
-pub fn main() !void {
-    const allocator = std.heap.smp_allocator;
+pub fn main(init: std.process.Init) !void {
+    const allocator = init.gpa;
 
     const config = BenchConfig{};
-    var benchmark = Benchmark.init(allocator, config);
-
-    const stdout_file = std.fs.File.stdout();
-    var stdout_file_writer = stdout_file.writer(&.{});
-    var stdout = &stdout_file_writer.interface;
+    var benchmark = Benchmark.init(allocator, init.io, config);
+    var stdout_buffer: [0x100]u8 = undefined;
+    var stdout_file_writer = Io.File.stdout().writer(init.io, &stdout_buffer);
+    const stdout = &stdout_file_writer.interface;
     try stdout.print("\nRunning Bottom encoding/decoding benchmarks (streaming)...\n", .{});
     try stdout.print("Writer buffer: {d} bytes, Reader buffer: {d} bytes, Encoded buffer: {d} bytes\n", .{
         config.writer_buffer_size,

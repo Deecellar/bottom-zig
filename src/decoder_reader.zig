@@ -306,7 +306,7 @@ test "BottomReader handles sequences spanning multiple reads" {
 
     // Verify handling of sequences split mid-encoding across read boundaries.
     // Byte 255 has one of the longest encodings in the Bottom scheme.
-    const original = [_]u8{255} ** 10;
+    const original: [10]u8 = @splat(255);
 
     var encode_sink = std.Io.Writer.Allocating.init(std.testing.allocator);
     defer encode_sink.deinit();

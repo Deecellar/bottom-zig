@@ -98,7 +98,7 @@ pub const BottomDecodeLut = struct {
     /// Inserts all 256 encoded sequences with linear probing collision resolution.
     fn buildTable() [table_size]Entry {
         @setEvalBranchQuota(100_000_000);
-        var t: [table_size]Entry = [_]Entry{.{ .key = 0, .value = 0 }} ** table_size;
+        var t: [table_size]Entry = @splat(.{ .key = 0, .value = 0 });
 
         inline for (0..256) |i| {
             const enc = BottomLut.lut(@intCast(i));
@@ -127,6 +127,190 @@ pub const BottomDecodeLut = struct {
         return t;
     }
 };
+
+// The DFA is a packed 2D state-transition table that fits in exactly 8 KB
+// (16 states × 256 byte values × 2 bytes per entry). It walks encoded Bottom
+// data one byte at a time, accumulating a running sum and emitting a decoded
+// byte whenever the 👉👈 delimiter's final byte is observed.
+//
+// The "comma cheat" — since the DFA loops on every `,` byte and adds 1 to
+// the running sum, we only need to teach the DFA a single `,` token. Sequences
+// like `,,` and `,,,` naturally decode to 2 and 3 without explicit entries.
+//
+// The table is generated at compile time from the Bottom emoji alphabet,
+// sharing UTF-8 prefix paths between tokens (e.g. 🫂, 💖, 🥺, 👉 all begin
+// with `f0 9f`, so their first two transitions share sub-states).
+
+pub const DfaAction = packed struct(u16) {
+    next: u6,        // Next state (supports up to 64 states)
+    is_end: u1,      // True for the final byte of the 👉👈 delimiter
+    is_invalid: u1,  // True if the byte does not continue any path
+    add: u8,         // Value to add to the running sum
+};
+
+pub const DfaTable = [16][256]DfaAction;
+
+/// Compile-time generated DFA for decoding the Bottom emoji alphabet.
+/// Total footprint: 16 × 256 × 2 bytes = 8 KiB — fits inside the L1 cache
+/// of any modern CPU, removing all D-cache misses from the hot path.
+pub const BOTTOM_DFA: DfaTable = generateBottomDfa();
+
+/// Walk every token through the 2D table at compile time, creating new
+/// sub-states for prefix bytes that are not yet present. All entries default
+/// to `.is_invalid = 1` so that any byte we don't recognize resets the
+/// stream.
+fn generateBottomDfa() DfaTable {
+    @setEvalBranchQuota(100_000);
+
+    var table: DfaTable = undefined;
+
+    // 1. Initialize the entire table as invalid.
+    for (&table) |*row| {
+        for (row) |*action| {
+            action.* = .{
+                .next = 0,
+                .is_end = 0,
+                .is_invalid = 1,
+                .add = 0,
+            };
+        }
+    }
+
+    var next_available_state: u6 = 1;
+
+    const wire = struct {
+        fn wire(
+            comptime bytes: []const u8,
+            value: u8,
+            comptime final_is_end: bool,
+            t: *DfaTable,
+            next_state: *u6,
+        ) void {
+            var curr: u6 = 0;
+            for (bytes, 0..) |byte, i| {
+                const is_last = (i == bytes.len - 1);
+                if (is_last) {
+                    t[curr][byte] = .{
+                        .next = 0,
+                        .is_end = if (final_is_end) 1 else 0,
+                        .is_invalid = 0,
+                        .add = value,
+                    };
+                } else {
+                    if (t[curr][byte].is_invalid == 1) {
+                        t[curr][byte] = .{
+                            .next = next_state.*,
+                            .is_end = 0,
+                            .is_invalid = 0,
+                            .add = 0,
+                        };
+                        next_state.* += 1;
+                    }
+                    curr = t[curr][byte].next;
+                }
+            }
+        }
+    }.wire;
+
+    const Token = struct { str: []const u8, val: u8 };
+    const tokens = [_]Token{
+        .{ .str = "🫂", .val = 200 },
+        .{ .str = "💖", .val = 50 },
+        .{ .str = "✨", .val = 10 },
+        .{ .str = "🥺", .val = 5 },
+        .{ .str = ",",  .val = 1 },
+        .{ .str = "❤",  .val = 0 },
+    };
+    for (tokens) |tok| {
+        wire(tok.str, tok.val, false, &table, &next_available_state);
+    }
+
+    wire("👉👈", 0, true, &table, &next_available_state);
+
+    return table;
+}
+
+test "DFA round-trips every byte 0..255" {
+    for (0..256) |i| {
+        const byte: u8 = @intCast(i);
+        const encoded = BottomLut.lut(byte);
+
+        var state: u6 = 0;
+        var running_sum: u8 = 0;
+        var decoded: ?u8 = null;
+
+        for (encoded) |b| {
+            const action = BOTTOM_DFA[state][b];
+            if (action.is_invalid == 1) {
+                state = 0;
+                running_sum = 0;
+                continue;
+            }
+            running_sum +%= action.add;
+            state = action.next;
+            if (action.is_end == 1) {
+                decoded = running_sum;
+                running_sum = 0;
+            }
+        }
+
+        try std.testing.expect(decoded != null);
+        try std.testing.expectEqual(byte, decoded.?);
+    }
+}
+
+test "DFA emits correct sums for repeated commas" {
+    var state: u6 = 0;
+    var running_sum: u8 = 0;
+
+    const delimiter = "👉👈";
+    const input = ",,,,," ++ delimiter; // 5 commas → running_sum = 5
+
+    var emitted: ?u8 = null;
+    for (input) |b| {
+        const action = BOTTOM_DFA[state][b];
+        if (action.is_invalid == 1) {
+            state = 0;
+            running_sum = 0;
+            continue;
+        }
+        running_sum +%= action.add;
+        state = action.next;
+        if (action.is_end == 1) {
+            emitted = running_sum;
+            running_sum = 0;
+        }
+    }
+
+    try std.testing.expectEqual(@as(?u8, 5), emitted);
+}
+
+test "DFA rejects invalid bytes and recovers" {
+    var state: u6 = 0;
+    var running_sum: u8 = 0;
+
+    const valid = "💖🥺,👉👈"; // 50 + 5 + 1 = 56 = '8'
+    const garbage = "ZZ";      // not in alphabet; should reset the DFA
+    const input = garbage ++ valid;
+
+    var emitted: ?u8 = null;
+    for (input) |b| {
+        const action = BOTTOM_DFA[state][b];
+        if (action.is_invalid == 1) {
+            state = 0;
+            running_sum = 0;
+            continue;
+        }
+        running_sum +%= action.add;
+        state = action.next;
+        if (action.is_end == 1) {
+            emitted = running_sum;
+            running_sum = 0;
+        }
+    }
+
+    try std.testing.expectEqual(@as(?u8, '8'), emitted);
+}
 
 test "encode and decode round trip" {
     for (0..256) |i| {

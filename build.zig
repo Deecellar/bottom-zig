@@ -5,13 +5,6 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    // External dependency: zig-args for CLI argument parsing
-    // Fetched from build.zig.zon package manifest
-    const args_dep = b.dependency("args", .{
-        .target = target,
-        .optimize = optimize,
-    });
-
     // Build-time configuration options embedded into binaries
     const build_opts = b.addOptions();
     build_opts.addOption([]const u8, "version", "v0.1.0");
@@ -29,8 +22,7 @@ pub fn build(b: *std.Build) void {
             .target = target,
             .optimize = optimize,
             .imports = &.{
-                .{ .name = "zig-args", .module = args_dep.module("args") },
-                .{ .name = "bottom",   .module = bottom_mod },
+                .{ .name = "bottom", .module = bottom_mod },
             },
         }),
     });
@@ -39,7 +31,7 @@ pub fn build(b: *std.Build) void {
 
     const run_cmd = b.addRunArtifact(exe);
     run_cmd.step.dependOn(b.getInstallStep());
-    if (b.args) |args| run_cmd.addArgs(args);
+    run_cmd.addPassthruArgs();
     const run_step = b.step("run", "Run the Bottom Encoder/Decoder");
     run_step.dependOn(&run_cmd.step);
 
@@ -66,12 +58,12 @@ pub fn build(b: *std.Build) void {
             .target = target,
             .optimize = optimize,
             .imports = &.{ .{ .name = "bottom", .module = bottom_mod },  },
+            .link_libc = true,
 
         }),
         .linkage = .static,
     });
     static_lib.root_module.addOptions("build_options", build_opts);
-    static_lib.linkLibC();
     b.installArtifact(static_lib);
 
     const shared_lib = b.addLibrary(.{
@@ -81,20 +73,19 @@ pub fn build(b: *std.Build) void {
             .target = target,
             .optimize = optimize,
             .imports = &.{ .{ .name = "bottom", .module = bottom_mod },  },
+            .link_libc = true,
 
         }),
         .linkage = .dynamic,
     });
     shared_lib.root_module.addOptions("build_options", build_opts);
-    shared_lib.linkLibC();
     b.installArtifact(shared_lib);
 
     // Install C header to zig-out/include/bottom/bottom.h
     const header_install = b.addInstallHeaderFile(
-        b.path("include/bottom.h"),
+        b.path("include/bottom/bottom.h"),
         "bottom/bottom.h",
     );
-
     const install_lib_step = b.step("install-lib", "Install library only (static+shared+headers)");
     install_lib_step.dependOn(&static_lib.step);
     install_lib_step.dependOn(&shared_lib.step);
@@ -151,7 +142,7 @@ pub fn build(b: *std.Build) void {
 
     const run_bench = b.addRunArtifact(bench);
     run_bench.step.dependOn(b.getInstallStep());
-    if (b.args) |args| run_bench.addArgs(args);
+    run_bench.addPassthruArgs();
     const run_bench_step = b.step("run-benchmark", "Run the Bottom Encoder/Decoder benchmark");
     run_bench_step.dependOn(&run_bench.step);
 
@@ -161,24 +152,19 @@ pub fn build(b: *std.Build) void {
         .root_module = b.createModule(.{
             .target = target,
             .optimize = optimize,
+            .link_libc = true,
         }),
     });
-    clib_exe.linkLibC();
 
     // Dependencies must be built before C example links against them
     clib_exe.step.dependOn(&static_lib.step);
     clib_exe.step.dependOn(&shared_lib.step);
     clib_exe.step.dependOn(&header_install.step);
 
-    // Point to zig-out for installed headers and libraries
-    const inc_dir = b.pathJoin(&.{ b.install_prefix, "include" });
-    const lib_dir = b.pathJoin(&.{ b.install_prefix, "lib" });
+    clib_exe.root_module.linkLibrary(static_lib);
+    clib_exe.root_module.addIncludePath(b.path("include"));
 
-    clib_exe.root_module.addIncludePath(.{ .cwd_relative = inc_dir });
-    clib_exe.root_module.addLibraryPath(.{ .cwd_relative = lib_dir });
-    clib_exe.linkSystemLibrary("bottomz");
-
-    clib_exe.addCSourceFile(.{
+    clib_exe.root_module.addCSourceFile(.{
         .file = b.path("src/example.c"),
         .flags = &.{},
     });

@@ -5,10 +5,10 @@
 //! encoding format (https://github.com/bottom-software-foundation/bottom-spec).
 
 const std = @import("std");
+const Io = std.Io;
 const builtin = @import("builtin");
 const build_options = @import("build_options");
 
-const args = @import("zig-args");
 const bottom = @import("bottom");
 
 const help_text = @embedFile("help.txt");
@@ -85,9 +85,9 @@ const BottomErrorHandler = struct {
     pub fn init() BottomErrorHandler {
         return .{
             .errors_to_report = .{},
-            .node_array = .{ErrorNode{ 
+            .node_array = @splat(ErrorNode{
                 .data = error.exclusive_arguments_provided,
-            }} ** 1024,
+            }),
             .index = 0,
         };
     }
@@ -139,24 +139,24 @@ const BottomErrorHandler = struct {
             }
         }
     }
-
-    pub fn exit(self: *BottomErrorHandler) noreturn {
-        std.posix.exit(@bitCast(self.exit_code));
+    pub fn exitCode(self: *BottomErrorHandler) u8 {
+        return @bitCast(self.exit_code);
     }
 
-    pub fn deinit(self: *BottomErrorHandler) noreturn {
+    pub fn deinit(self: *BottomErrorHandler) u8 {
         if (self.errors_to_report.len() != 0) self.handleErrors();
-        self.exit();
+        return self.exitCode();
     }
-};
+ };
 
 const BottomConsoleApp = struct {
     err_handler: BottomErrorHandler,
     options: Options,
-    input_file: std.fs.File,
-    output_file: std.fs.File,
+    io: Io,
+    input_file: Io.File,
+    output_file: Io.File,
 
-    pub fn init(options: Options) BottomConsoleApp {
+    pub fn init(io: Io, options: Options) BottomConsoleApp {
         var can_use_stdin_stdout: bool = true;
         var err_handler = BottomErrorHandler.init();
         if (builtin.os.tag == .windows) {
@@ -165,28 +165,28 @@ const BottomConsoleApp = struct {
                 err_handler.report(error.windows_unsuported_code_page);
             }
         }
-        const dummy_file = std.fs.File.stdout();
-        
-        var input_file: std.fs.File = undefined;
+        const dummy_file = Io.File.stdout();
+
+        var input_file: Io.File = undefined;
         if (options.input) |path| {
-            input_file = std.fs.cwd().openFile(path, .{}) catch file_return: {
+            input_file = Io.Dir.cwd().openFile(io, path, .{}) catch file_return: {
                 err_handler.report(error.failed_to_open_input_file);
                 break :file_return dummy_file;
             };
         } else if (can_use_stdin_stdout) {
-            input_file = std.fs.File.stdin();
+            input_file = Io.File.stdin();
         } else {
             err_handler.report(error.failed_to_open_input_file);
         }
-        
-        var output_file: std.fs.File = undefined;
+
+        var output_file: Io.File = undefined;
         if (options.output) |path| {
-            output_file = std.fs.cwd().createFile(path, .{}) catch file_return: {
+            output_file = Io.Dir.cwd().createFile(io, path, .{}) catch file_return: {
                 err_handler.report(error.failed_to_open_output_file);
                 break :file_return dummy_file;
             };
         } else if (can_use_stdin_stdout) {
-            output_file = std.fs.File.stdout();
+            output_file = Io.File.stdout();
         } else {
             err_handler.report(error.failed_to_open_output_file);
         }
@@ -201,12 +201,10 @@ const BottomConsoleApp = struct {
             err_handler.report(error.obligatory_arguments_not_provided);
         }
         err_handler.handleErrors();
-        if (err_handler.exit_code.toInt() != 0) {
-            err_handler.exit();
-        }
         return .{
             .err_handler = err_handler,
             .options = options,
+            .io = io,
             .input_file = input_file,
             .output_file = output_file,
         };
@@ -216,14 +214,14 @@ const BottomConsoleApp = struct {
         if (self.options.help) {
             self.help();
         } else if (self.options.bottomify) {
-            if(self.output_file.handle == std.fs.File.stdout().handle) {
+            if (self.output_file.handle == Io.File.stdout().handle) {
                 scoped.warn("Using standard input/output for encoding/decoding may cause issues if your console does not fully support UTF-8. If you encounter problems, consider using file-based input/output with the -i and -o options.", .{});
                 scoped.info("Continuing with standard input/output...", .{});
                 scoped.info("To finish the input use Ctrl + D (Linux/Mac) or Ctrl + Z (Windows) followed by Enter.", .{});
             }
             self.bottomify();
         } else if (self.options.regress) {
-            if(self.input_file.handle == std.fs.File.stdin().handle) {
+            if (self.input_file.handle == Io.File.stdin().handle) {
                 scoped.warn("Using standard input/output for encoding/decoding may cause issues if your console does not fully support UTF-8. If you encounter problems, consider using file-based input/output with the -i and -o options.", .{});
                 scoped.info("Continuing with standard input/output...", .{});
                 scoped.info("To finish the input use Ctrl + D (Linux/Mac) or Ctrl + Z (Windows) followed by Enter.", .{});
@@ -240,21 +238,21 @@ const BottomConsoleApp = struct {
         var input_buffer: [bufferSize]u8 = undefined;
         var output_buffer: [bufferSize * max_expansion_per_byte]u8 = undefined;
         var encode_buffer: [bufferSize * max_expansion_per_byte]u8 = undefined;
-        
-        var input_reader = std.fs.File.Reader.init(self.input_file, &input_buffer);
-        var output_writer = std.fs.File.Writer.init(self.output_file, &output_buffer);
-        
+
+        var input_reader = Io.File.Reader.init(self.input_file, self.io, &input_buffer);
+        var output_writer = Io.File.Writer.init(self.output_file, self.io, &output_buffer);
+
         var encoder = bottom.BottomWriter.init(&encode_buffer, &output_writer.interface);
-        
+
         defer output_writer.interface.flush() catch {
             self.err_handler.report(error.failed_to_flush_into_file);
         };
-        
+
         _ = input_reader.interface.streamRemaining(&encoder.writer) catch {
             self.err_handler.report(error.failed_to_open_input_file);
             return;
         };
-        
+
         encoder.writer.flush() catch {
             self.err_handler.report(error.failed_to_flush_into_file);
             return;
@@ -262,19 +260,13 @@ const BottomConsoleApp = struct {
     }
 
     pub fn help(self: *BottomConsoleApp) void {
-        _ = self;
-        const stdout_file = std.fs.File.stdout();
-        var buf: [256]u8 = undefined;
-        var stdout_writer = stdout_file.writer(&buf);
+        var stdout_writer = Io.File.stdout().writer(self.io, &help_buf);
         stdout_writer.interface.writeAll(help_text) catch return;
         stdout_writer.interface.flush() catch return;
     }
 
     pub fn version(self: *BottomConsoleApp) void {
-        _ = self;
-        const stdout_file = std.fs.File.stdout();
-        var buf: [256]u8 = undefined;
-        var stdout_writer = stdout_file.writer(&buf);
+        var stdout_writer = Io.File.stdout().writer(self.io, &help_buf);
         stdout_writer.interface.writeAll(build_options.version) catch return;
         stdout_writer.interface.flush() catch return;
     }
@@ -283,52 +275,119 @@ const BottomConsoleApp = struct {
         // FIXME: Figure out the buffers sizes here
         var input_buffer: [bufferSize]u8 = undefined;
         var output_buffer: [bufferSize]u8 = undefined;
-        var decode_buffer: [bufferSize ]u8 = undefined;
+        var decode_buffer: [bufferSize]u8 = undefined;
         var encoded_buffer: [bufferSize]u8 = undefined;
 
-        var input_reader = std.fs.File.Reader.init(self.input_file, &input_buffer);
-        var output_writer = std.fs.File.Writer.init(self.output_file, &output_buffer);
-        
+        var input_reader = Io.File.Reader.init(self.input_file, self.io, &input_buffer);
+        var output_writer = Io.File.Writer.init(self.output_file, self.io, &output_buffer);
+
         var decoder = bottom.BottomReader.init(&decode_buffer, &encoded_buffer, &input_reader.interface);
-        
+
         defer output_writer.interface.flush() catch {
             self.err_handler.report(error.failed_to_flush_into_file);
         };
-        
+
         _ = decoder.reader.streamRemaining(&output_writer.interface) catch {
             self.err_handler.report(error.failed_to_decode_byte);
             return;
         };
     }
 
-    pub fn deinit(self: *BottomConsoleApp) noreturn {
-        self.err_handler.deinit();
+    pub fn deinit(self: *BottomConsoleApp) u8 {
+        return self.err_handler.deinit();
     }
 };
 
-pub fn main() noreturn {
-    var app = init_blk: {
-        // Use different allocators based on build mode:
-        // - Release builds use the fast SMP allocator for performance
-        // - Debug builds use DebugAllocator to catch memory bugs (leaks, double-frees, etc.)
-        const underlying_allocator = allocator_blk: {
-            if (builtin.mode != .Debug) {
-                break :allocator_blk std.heap.smp_allocator;
-            } else {
-                var gpa = std.heap.DebugAllocator(.{}){};
-                break :allocator_blk gpa.allocator();
+var help_buf: [256]u8 = undefined;
+
+/// Inline arg parser: handles long options (`--name value`, `--name=value`)
+/// and shorthand clusters (`-bri foo`). No external dependency; matches the
+/// subset of zig-args we previously used.
+fn parseOptions(init: std.process.Init) !Options {
+    const arena = init.arena.allocator();
+    var it = try init.minimal.args.iterateAllocator(arena);
+    defer it.deinit();
+    // Skip argv[0] (executable path) — the iterator starts at it.
+    _ = it.next();
+
+    var opts = Options{};
+
+    while (it.next()) |item| {
+        if (std.mem.eql(u8, item, "--")) break;
+        if (std.mem.startsWith(u8, item, "--")) {
+            try parseLong(&opts, item[2..], &it, arena);
+        } else if (item.len > 1 and item[0] == '-') {
+            try parseShort(&opts, item[1..], &it, arena);
+        } else {
+            scoped.err("Unknown option: {s}\n", .{item});
+            return error.failed_args_parsing;
+        }
+    }
+    return opts;
+}
+
+fn parseLong(opts: *Options, body: []const u8, it: *std.process.Args.Iterator, arena: std.mem.Allocator) !void {
+    const name, const inline_val = splitEq(body);
+    const field_names = @typeInfo(Options).@"struct".field_names;
+    inline for (field_names) |fname| {
+        if (std.mem.eql(u8, name, fname)) {
+            try assignField(opts, fname, inline_val, it, arena);
+            return;
+        }
+    }
+    scoped.err("Unknown option: --{s}\n", .{name});
+    return error.failed_args_parsing;
+}
+fn parseShort(opts: *Options, cluster: []const u8, it: *std.process.Args.Iterator, arena: std.mem.Allocator) !void {
+    const sh_names = @typeInfo(@TypeOf(Options.shorthands)).@"struct".field_names;
+    inline for (sh_names) |sname| {
+        for (cluster, 0..) |ch, idx| {
+            if (ch != sname[0]) continue;
+            const long_name = @field(Options.shorthands, sname);
+            const Field = @TypeOf(@field(opts, long_name));
+            if (Field == bool) {
+                @field(opts, long_name) = true;
+                continue;
             }
-        };
-        var thread_safe_allocator = std.heap.ThreadSafeAllocator{ .child_allocator = underlying_allocator };
-        const allocator = thread_safe_allocator.allocator();
-        var options = args.parseForCurrentProcess(Options, allocator, .print) catch {
-            scoped.err("Failed to get memory for options", .{});
-            std.posix.exit(3);
-        };
-        const op = options.options;
-        defer options.deinit();
-        break :init_blk BottomConsoleApp.init(op);
+            if (idx != cluster.len - 1) {
+                scoped.err("Option -{c} requires a value and must be last in a cluster\n", .{ch});
+                return error.failed_args_parsing;
+            }
+            const next = it.next() orelse {
+                scoped.err("Option -{c} requires a value\n", .{ch});
+                return error.failed_args_parsing;
+            };
+            try assignField(opts, long_name, next, it, arena);
+            return;
+        }
+        return;
+    }
+    scoped.err("Unknown shorthand cluster: -{s}\n", .{cluster});
+    return error.failed_args_parsing;
+}
+
+fn splitEq(s: []const u8) struct { []const u8, ?[]const u8 } {
+    if (std.mem.indexOfScalar(u8, s, '=')) |i| return .{ s[0..i], s[i + 1 ..] };
+    return .{ s, null };
+}
+
+
+fn assignField(opts: *Options, comptime name: []const u8, value: ?[]const u8, it: *std.process.Args.Iterator, arena: std.mem.Allocator) !void {
+    const Field = @TypeOf(@field(opts, name));
+    if (Field == bool) {
+        @field(opts, name) = true;
+        return;
+    }
+    const raw = value orelse it.next() orelse {
+        scoped.err("Option --{s} requires a value\n", .{name});
+        return error.failed_args_parsing;
     };
+    @field(opts, name) = try arena.dupeSentinel(u8, raw, 0);
+}
+
+pub fn main(init: std.process.Init) !u8 {
+    const op = parseOptions(init) catch return 2;
+    var app = BottomConsoleApp.init(init.io, op);
     app.run();
-    app.deinit();
+    return app.deinit();
 }

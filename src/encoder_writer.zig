@@ -197,7 +197,7 @@ test "BottomWriter encodes individual bytes correctly" {
     }
     try encoder.writer.flush();
 
-    var expected_builder = std.ArrayList(u8){};
+    var expected_builder: std.ArrayList(u8) = .empty;
     defer expected_builder.deinit(std.testing.allocator);
 
     for (0..256) |i| {
@@ -212,25 +212,22 @@ test "BottomWriter encodes individual bytes correctly" {
     try std.testing.expectEqualSlices(u8, expected_result, actual_result);
 }
 
-fn testOne(ctx: void, data: []const u8) !void {
+fn testOne(ctx: void, smith: *std.testing.Smith) !void {
     _ = ctx;
+    var data: [4096]u8 = undefined;
+    const len = smith.slice(&data);
+
     var allocating_writer = std.Io.Writer.Allocating.init(std.testing.allocator);
     defer allocating_writer.deinit();
 
     var bottom_writer_buffer: [4096]u8 = undefined;
 
     var encoder = BottomWriter.init(&bottom_writer_buffer, &allocating_writer.writer);
-    try encoder.writer.writeAll(data);
+    try encoder.writer.writeAll(data[0..len]);
     try encoder.writer.flush();
 
     _ = allocating_writer.written();
 }
 test "Fuzz testing" {
-    try std.testing.fuzz({}, testOne, .{.corpus = &.{
-        "hello world!",
-        "The quick brown fox jumps over the lazy dog.",
-        "💖💖,,,,👉👈💖💖,👉👈",
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789",
-        "😀😃😄😁😆😅😂🤣😊😇🙂",
-    }});
+    try std.testing.fuzz({}, testOne, .{});
 }

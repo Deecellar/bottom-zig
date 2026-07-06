@@ -3,10 +3,4 @@
     .name = .bottom_zig,
     .fingerprint = 0xb09e41085ab56146,
     .version = "0.1.0",
-    .dependencies = .{
-        .args = .{
-            .url = "https://github.com/ikskuh/zig-args/archive/8ae26b44a884ff20dca98ee84c098e8f8e94902f.tar.gz",
-            .hash = "args-0.0.0-CiLiqojRAACGzDRO7A9dw7kWSchNk29caJZkXuMCb0Cn",
-        },
-    },
 }
