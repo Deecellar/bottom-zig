@@ -65,128 +65,87 @@ pub const BottomLut = struct {
 pub const BottomDecodeLut = struct {
     pub const delimiter = "👉👈";
 
-    const Entry = struct { key: u64, value: u8 };
-    // 512-entry hash table for 256 codes. Load factor ~0.5 for fast lookups.
-    const table_size = 512;
-    const mask = table_size - 1;
-    const table = buildTable();
-
-    /// Decode a Bottom sequence (without delimiter) to its original byte.
-    /// Returns null if sequence is invalid or not in the encoding table.
-    /// Uses XxHash64 + open addressing for O(1) expected lookup time.
     pub inline fn decode(sequence: []const u8) ?u8 {
-        @setRuntimeSafety(false);
-        // Reject sequences that exceed maximum encoded length.
-        if (sequence.len + delimiter.len > 40) return null;
-
-        // Hash the sequence + delimiter to match encoding format.
-        var hasher = std.hash.XxHash64.init(0);
-        hasher.update(sequence);
-        hasher.update(delimiter);
-        const key = hasher.final();
-
-        // Linear probing until match or empty slot.
-        var i: usize = @intCast(key & mask);
-        while (true) : (i = (i + 1) & mask) {
-            const e = table[i];
-            if (e.key == 0) return null;
-            if (e.key == key) return e.value;
-        }
-    }
-
-    /// Build the decode hash table at compile time.
-    /// Inserts all 256 encoded sequences with linear probing collision resolution.
-    fn buildTable() [table_size]Entry {
-        @setEvalBranchQuota(100_000_000);
-        var t: [table_size]Entry = @splat(.{ .key = 0, .value = 0 });
-
-        inline for (0..256) |i| {
-            const enc = BottomLut.lut(@intCast(i));
-            var hasher = std.hash.XxHash64.init(0);
-            hasher.update(enc);
-            const key = hasher.final();
-
-            // Linear probe to find empty slot. Guaranteed to succeed with LF=0.5.
-            var idx: usize = @intCast(key & mask);
-            while (true) : (idx = (idx + 1) & mask) {
-                if (t[idx].key == 0) {
-                    t[idx] = .{ .key = key, .value = @intCast(i) };
-                    break;
-                }
-            }
-        }
-
-        // Compile-time validation: ensure all 256 codes were inserted.
-        var count: usize = 0;
-        for (t) |e| {
-            if (e.key != 0) count += 1;
-        }
-        if (count != 256) {
-            @compileError(std.fmt.comptimePrint("Hash table build failed: {d}/256 entries", .{count}));
-        }
-        return t;
+        return BottomDecodePerfectHash.decode(sequence);
     }
 };
 
-
+// Gperf generated.
 pub const BottomDecodePerfectHash = struct {
-    /// Faster decoder using FNV-1a hash instead of XxHash64.
-    /// FNV-1a costs ~1.5 cycles/byte vs XxHash64's ~4 cycles/byte.
-    /// Same 512-slot open-addressing table, but the hash is 2-3x cheaper.
-    /// At load factor 0.5, average probe length is ~1.5 slots.
+    const asso_values = [_]u16{
+      1199, 1199, 1199, 1199, 1199, 1199, 1199, 1199, 1199, 1199,
+      1199, 1199, 1199, 1199, 1199, 1199, 1199, 1199, 1199, 1199,
+      1199, 1199, 1199, 1199, 1199, 1199, 1199, 1199, 1199, 1199,
+      1199, 1199, 1199, 1199, 1199, 1199, 1199, 1199, 1199, 1199,
+      1199, 1199, 1199, 1199,    3, 1199, 1199, 1199, 1199, 1199,
+      1199, 1199, 1199, 1199, 1199, 1199, 1199, 1199, 1199, 1199,
+      1199, 1199, 1199, 1199, 1199, 1199, 1199, 1199, 1199, 1199,
+      1199, 1199, 1199, 1199, 1199, 1199, 1199, 1199, 1199, 1199,
+      1199, 1199, 1199, 1199, 1199, 1199, 1199, 1199, 1199, 1199,
+      1199, 1199, 1199, 1199, 1199, 1199, 1199, 1199, 1199, 1199,
+      1199, 1199, 1199, 1199, 1199, 1199, 1199, 1199, 1199, 1199,
+      1199, 1199, 1199, 1199, 1199, 1199, 1199, 1199, 1199, 1199,
+      1199, 1199, 1199, 1199, 1199, 1199, 1199, 1199, 1199, 1199,
+       485, 1199, 1199, 1199, 1199, 1199, 1199, 1199, 1199, 1199,
+      1199, 1199, 1199, 1199, 1199, 1199,    3, 1199, 1199, 1199,
+       164, 1199, 1199, 1199, 1199, 1199,   24, 1199, 1199,  444,
+      1199, 1199, 1199, 1199,    3,  381, 1199, 1199,   38, 1199,
+      1199, 1199, 1199, 1199, 1199, 1199, 1199, 1199, 1199, 1199,
+      1199, 1199, 1199, 1199, 1199, 1199,  122, 1199, 1199, 1199,
+      1199, 1199, 1199, 1199, 1199, 1199, 1199, 1199, 1199, 1199,
+      1199, 1199, 1199, 1199, 1199, 1199, 1199, 1199, 1199, 1199,
+      1199, 1199, 1199, 1199, 1199, 1199, 1199, 1199, 1199, 1199,
+      1199, 1199, 1199, 1199, 1199, 1199,   10, 1199, 1199, 1199,
+      1199, 1199, 1199, 1199, 1199, 1199, 1199, 1199, 1199, 1199,
+        31, 1199, 1199, 1199, 1199, 1199, 1199, 1199, 1199, 1199,
+      1199, 1199, 1199, 1199, 1199, 1199
+    };
 
-    const table_size: u32 = 512;
-    const mask: u32 = table_size - 1;
-
-    const Entry = struct { key: u64, value: u8 };
-    const table: [table_size]Entry = buildTable();
-
-    /// FNV-1a hash of sequence + delimiter.
-    fn hashSeq(sequence: []const u8) u64 {
-        const delimiter = BottomDecodeLut.delimiter;
-        var h: u64 = 14695981039346656037;
-        for (sequence) |b| {
-            h ^= b;
-            h *%= 1099511628211;
-        }
-        for (delimiter) |b| {
-            h ^= b;
-            h *%= 1099511628211;
-        }
-        return h;
+    fn hashSeq(sequence: []const u8) usize {
+        const len = sequence.len;
+        if (len == 0) return 1199;
+        var hval: usize = len;
+        if (len >= 22) hval +%= asso_values[sequence[21]];
+        if (len >= 19) hval +%= asso_values[sequence[18]];
+        if (len >= 16) hval +%= asso_values[sequence[15]];
+        if (len >= 13) hval +%= asso_values[sequence[12]];
+        if (len >= 11) hval +%= asso_values[sequence[10]];
+        if (len >= 8)  hval +%= asso_values[sequence[7]];
+        if (len >= 7)  hval +%= asso_values[sequence[6]];
+        if (len >= 4)  hval +%= asso_values[sequence[3]];
+        if (len >= 1)  hval +%= asso_values[sequence[0]];
+        hval +%= asso_values[sequence[len - 1]];
+        return hval;
     }
+
+    const table_size = 1199;
+    const Entry = struct { valid: bool, value: u8 };
+    const table: [table_size]Entry = buildTable();
 
     fn buildTable() [table_size]Entry {
         @setEvalBranchQuota(10_000_000);
-        var t: [table_size]Entry = @splat(.{ .key = 0, .value = 0 });
+        var t: [table_size]Entry = @splat(.{ .valid = false, .value = 0 });
         inline for (0..256) |i| {
             const enc = BottomLut.lut(@intCast(i));
             const key = hashSeq(enc[0 .. enc.len - BottomDecodeLut.delimiter.len]);
-            var idx: usize = @intCast(key & mask);
-            while (true) : (idx = (idx + 1) & mask) {
-                if (t[idx].key == 0) {
-                    t[idx] = .{ .key = key, .value = @intCast(i) };
-                    break;
-                }
-            }
+            if (t[key].valid) @compileError("perfect hash collision");
+            t[key] = .{ .valid = true, .value = @intCast(i) };
         }
-        var count: usize = 0;
-        for (t) |e| {
-            if (e.key != 0) count += 1;
-        }
-        if (count != 256) @compileError("table build failed");
         return t;
     }
 
     pub inline fn decode(sequence: []const u8) ?u8 {
-        if (sequence.len + BottomDecodeLut.delimiter.len > 40) return null;
+        if (sequence.len == 0 or sequence.len > 32) return null;
         const key = hashSeq(sequence);
-        var i: usize = @intCast(key & mask);
-        while (true) : (i = (i + 1) & mask) {
-            const e = table[i];
-            if (e.key == 0) return null;
-            if (e.key == key) return e.value;
+        if (key >= table_size) return null;
+        const e = table[key];
+        if (!e.valid) return null;
+        
+        const expected = BottomLut.lut(e.value);
+        if (!std.mem.eql(u8, sequence, expected[0 .. expected.len - BottomDecodeLut.delimiter.len])) {
+            return null;
         }
+        return e.value;
     }
 };
 
